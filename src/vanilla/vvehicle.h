@@ -98,6 +98,13 @@ struct VehicleStatsStruct {
     irr::f32 Velocity;
 };
 
+struct VehicleViewStruct {
+    irr::core::vector3df Position;
+    irr::f32 AngleXY;
+    irr::f32 AngleZY;
+    irr::f32 AngleXZ;
+};
+
 /************************
  * Forward declarations *
  ************************/
@@ -162,9 +169,13 @@ private:
     //variables which only I use in my project
     irr::f32 mAbsTimeIntegrator = 0.0f;
 
+    irr::f32 mUpdateVehicleTimeIntegrator = 0.0f;
+
     //the mesh for the Irrlicht SceneNode model
     irr::scene::IAnimatedMesh* mCraftMesh = nullptr;
     irr::scene::IMeshSceneNode* mCraftNode = nullptr;
+
+    VehicleViewStruct View;
 
     void SetupFlightModelConstants();
 
@@ -181,6 +192,26 @@ private:
     void vehicle_sensor_point_process(VehicleSensorPointStruct& sensor, irr::core::vector3df& slope, int8_t terrain);
     void vehicle_colide_map(irr::core::vector3df& delta);
     void vehicle_move_mapwho(irr::core::vector3df& delta);
+    void vehicle_set_camera();
+
+    //Below are my functions and Members I need
+    //a local coordinate system point defined on the players craft
+    irr::core::vector3d<irr::f32> IrrLocalCraftFrontPnt;
+    irr::core::vector3d<irr::f32> IrrLocalCraftBackPnt;
+    irr::core::vector3d<irr::f32> IrrLocalCraftLeftPnt;
+    irr::core::vector3d<irr::f32> IrrLocalCraftRightPnt;
+    irr::core::vector3d<irr::f32> IrrLocalCraftOrigin;
+
+    irr::core::vector3d<irr::f32> IrrWorldCraftFrontPnt;
+    irr::core::vector3d<irr::f32> IrrWorldCraftBackPnt;
+    irr::core::vector3d<irr::f32> IrrWorldCraftLeftPnt;
+    irr::core::vector3d<irr::f32> IrrWorldCraftRightPnt;
+    irr::core::vector3d<irr::f32> IrrWorldCraftOrigin;
+
+    irr::core::vector3df IrrWorldDirVecForward;
+
+    void CalcCraftLocalFeatureCoordinates(irr::core::vector3d<irr::f32> NewPosition, irr::core::vector3d<irr::f32> NewFrontAt);
+    void UpdateCoordinates();
 
     void UpdateSceneNode();
     void UpdateCamera();

@@ -4470,12 +4470,13 @@ void Race::ManagePlayerCamera() {
     if (playerCamera) {
         //get active camera of currently selected
         //player, and check if it has changed
-        if (this->currPlayerFollow != nullptr) {
-            activeCam = this->currPlayerFollow->DeliverActiveCamera();
+        // if (this->currPlayerFollow != nullptr) {
+        //     activeCam = this->currPlayerFollow->DeliverActiveCamera();
 
-            //do we need to hide the player model?
-            hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
-        }
+        //     //do we need to hide the player model?
+        //     hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
+        // }
+        activeCam = mVCraft->mOutsideCam;
     } else {
         //free moving camera to inspect the level/map
         //make sure to unhide all player models

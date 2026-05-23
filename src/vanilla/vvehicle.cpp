@@ -52,10 +52,14 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         }
     }
 
+    mUpdateVehicleTimeIntegrator += frameDeltaTime;
+    if (mUpdateVehicleTimeIntegrator >= 0.05) {
+        mUpdateVehicleTimeIntegrator = 0.0f;
+
     irr::core::vector3df delta;
 
     //if (mRace->AdvModel) {
-       //mRace->mVDbgInterface->Init(std::string("20052026.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
+   //   mRace->mVDbgInterface->Init(std::string("fullthrottle.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
         // mRace->mVDbgInterface->Init(std::string("testfile.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
         //mRace->mVDbgInterface->Init(std::string("beforeangle.bin"), std::string("afterangle.bin"), std::string("extract/level0-1/level0-1-unpacked.dat"));
 
@@ -72,11 +76,10 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
 
         //mRace->mVDbgInterface->CompareVehicleStatePlayerWithMemDump(*this, mRace->mVDbgInterface->newDump2);
 
-         //mRace->mVDbgInterface->SetVehicleStatePlayerFromMemDump(*this, mRace->mVDbgInterface->newDump);
+       //  mRace->mVDbgInterface->SetVehicleStatePlayerFromMemDump(*this, mRace->mVDbgInterface->newDump);
 
         vehicle_calculate_thrust(delta);
         mRace->mVCalc->move_displacement_slope(ThingData.Position, Slope);
-
 
         vehicle_calculate_momentum(delta);
         vehicle_calculate_movement_delta(delta);
@@ -85,12 +88,38 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         vehicle_move_roll(delta);
         vehicle_move_tilt(delta);
         vehicle_move_mapwho(delta);
+        vehicle_set_camera();
 
        // mRace->AdvModel = false;
    // }
 
         UpdateSceneNode();
-   // UpdateCamera();
+        UpdateCoordinates();
+
+        UpdateCamera();
+    }
+}
+
+void VVehicle::UpdateCoordinates() {
+    this->mCraftNode->updateAbsolutePosition();
+    irr::core::matrix4 trans = this->mCraftNode->getAbsoluteTransformation();
+
+    IrrWorldCraftFrontPnt = IrrLocalCraftFrontPnt;
+    trans.transformVect(IrrWorldCraftFrontPnt);
+
+    IrrWorldCraftBackPnt = IrrLocalCraftBackPnt;
+    trans.transformVect(IrrWorldCraftBackPnt);
+
+    IrrWorldCraftLeftPnt = IrrLocalCraftLeftPnt;
+    trans.transformVect(IrrWorldCraftLeftPnt);
+
+    IrrWorldCraftRightPnt = IrrLocalCraftRightPnt;
+    trans.transformVect(IrrWorldCraftRightPnt);
+
+    IrrWorldCraftOrigin = IrrLocalCraftOrigin;
+    trans.transformVect(IrrWorldCraftOrigin);
+
+    IrrWorldDirVecForward = (IrrWorldCraftFrontPnt - IrrWorldCraftBackPnt).normalize();
 }
 
 void VVehicle::SetupFlightModelConstants() {
@@ -195,7 +224,9 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    mCraftNode->setMaterialFlag(irr::video::EMF_FOG_ENABLE, true);
    //mCraftNode->setVisible(true);
 
-   //mOutsideCam = mRace->mGame->mSmgr->addCameraSceneNode(0, irr::core::vector3df(0,0,0), irr::core::vector3df(0,0,100), -1, false);
+   mOutsideCam = mRace->mGame->mSmgr->addCameraSceneNode(0, irr::core::vector3df(0,0,0), irr::core::vector3df(0,0,100), -1, false);
+
+   CalcCraftLocalFeatureCoordinates(NewPosition, NewFrontAt);
 }
 
 void VVehicle::vehicle_get_track_friction() {
@@ -445,7 +476,6 @@ void VVehicle::vehicle_calculate_momentum(irr::core::vector3df& delta) {
     }
 }
 
-//Note 01.05.2026: Function below is completely untested!
 void VVehicle::vehicle_calculate_movement_delta(irr::core::vector3df& delta) {
     irr::core::vector3df position1(0.0f, 0.0f, 0.0f);
     irr::f32 v5;
@@ -494,7 +524,6 @@ vehicle_calculate_movement_delta_LABEL_5:
     Displacement.Y = Momentum.DeltaY / 4.0f;
 }
 
-//Note 01.05.2026: Function below is completely untested!
 void VVehicle::vehicle_move_altitude(irr::core::vector3df& delta) {
      irr::core::vector3df position;
 
@@ -525,7 +554,6 @@ void VVehicle::vehicle_move_altitude(irr::core::vector3df& delta) {
      delta.Z = position.Z - ThingData.Position.Z;
 }
 
-//Note 01.05.2026: Function below is completely untested!
 void VVehicle::vehicle_move_tilt(irr::core::vector3df& delta) {
     irr::core::vector3df position;
     irr::f32 v11;
@@ -591,7 +619,6 @@ vehicle_move_tilt_LABEL_10:
     }
 }
 
-//Note 01.05.2026: Function below is completely untested!
 void VVehicle::vehicle_move_roll(irr::core::vector3df& delta) {
     irr::f32 v10;
     irr::f32 v8;
@@ -880,9 +907,9 @@ void VVehicle::vehicle_control_from_player() {
     MovementInput.SpeedActual = 0.0f;
 
     if (KeyPressedAccel) {
-        Increment.SpeedActual = IncrementAdd.SpeedActual;
+         MovementInput.SpeedActual = IncrementAdd.SpeedActual;
     } else if (KeyPressedDeaccel) {
-        Increment.SpeedActual = -IncrementAdd.SpeedActual;
+         MovementInput.SpeedActual = -IncrementAdd.SpeedActual;
     }
 
     if (KeyPressedTurnRight || KeyPressedTurnLeft) {
@@ -927,25 +954,20 @@ vehicle_control_from_player_LABEL_28:
 }
 
 void VVehicle::UpdateCamera() {
-    return;
-    irr::core::vector3df irrCraftPos =
-            mRace->mVCalc->VanillaToIrrlichtCoord(ThingData.Position);
-
-    irr::core::vector3df irrSensorRearLeftPos =
-            mRace->mVCalc->VanillaToIrrlichtCoord(FlightModel.RearLeft.Position);
-
-    irr::core::vector3df irrSensorRearRightPos =
-            mRace->mVCalc->VanillaToIrrlichtCoord(FlightModel.RearRight.Position);
-
-    irr::core::vector3df irrSensorRearMidPoint =
-          (irrSensorRearLeftPos + irrSensorRearRightPos) * irr::core::vector3df(0.5f, 0.5f, 0.5f);
-
-    irr::core::vector3df dirVecCraftForward = (irrCraftPos - irrSensorRearMidPoint).normalize();
-
-    irr::core::vector3df newCamPos = irrCraftPos - dirVecCraftForward * 2.0f;
+    irr::core::vector3df newCamPos = IrrWorldCraftOrigin - IrrWorldDirVecForward * 2.5f;
+    newCamPos.Y += 0.4f;
 
     mOutsideCam->setPosition(newCamPos);
-    mOutsideCam->setTarget(irrCraftPos);
+    mOutsideCam->setTarget(IrrWorldCraftOrigin);
+}
+
+void VVehicle::vehicle_set_camera() {
+    //the View is the position and orientation of the
+    //player craft model
+    View.Position = ThingData.Position;
+    View.AngleXY = ThingData.Movement.AngleXY;
+    View.AngleZY = ThingData.Movement.AngleZY;
+    View.AngleXZ = ThingData.Movement.AngleXZ + 4.0f * Increment.AngleXY;
 }
 
 void VVehicle::UpdateSceneNode() {
@@ -958,12 +980,12 @@ void VVehicle::UpdateSceneNode() {
     mCraftNode->setRotation(n.getRotationDegrees());
 
     //take care about the model 3D orientation
-    ModelYaw(mCraftNode, ThingData.Movement.AngleXY);        //Later change to View variable and add vehicle_set_camera
-    ModelPitch(mCraftNode, -ThingData.Movement.AngleZY);     //Later change to View variable and add vehicle_set_camera
-    ModelRoll(mCraftNode, ThingData.Movement.AngleXZ);       //Later change to View variable and add vehicle_set_camera
+    ModelYaw(mCraftNode, View.AngleXY);
+    ModelPitch(mCraftNode, -View.AngleZY);
+    ModelRoll(mCraftNode, View.AngleXZ);
 
     //finally move model to new 3D Position
-    irr::core::vector3df newPos = mRace->mVCalc->VanillaToIrrlichtCoord(ThingData.Position);
+    irr::core::vector3df newPos = mRace->mVCalc->VanillaToIrrlichtCoord(View.Position);
     mCraftNode->setPosition(newPos);
     //mCraftNode->setVisible(false);
 }
@@ -1029,6 +1051,81 @@ void VVehicle::ModelPitch(irr::scene::ISceneNode *node, irr::f32 rot)
 void VVehicle::ModelRoll(irr::scene::ISceneNode *node, irr::f32 rot)
 {
     ModelRotate(node, irr::core::vector3df(0.0f, 0.0f, rot) );
+}
+
+//NewPosition = New position of player craft center of gravity (world coordinates)
+//NewFrontAt = defines where player craft front is located at (world coordinates)
+void VVehicle::CalcCraftLocalFeatureCoordinates(irr::core::vector3d<irr::f32> NewPosition, irr::core::vector3d<irr::f32> NewFrontAt) {
+
+    //simply set the craft original coodinates
+    IrrLocalCraftOrigin.set(0.0f, 0.0f, 0.0f);
+
+    irr::core::vector3df pos_in_worldspace_frontPos(NewFrontAt);
+    this->mCraftNode->updateAbsolutePosition();
+    irr::core::matrix4 matr = this->mCraftNode->getAbsoluteTransformation();
+    matr.makeInverse();
+
+    matr.transformVect(pos_in_worldspace_frontPos);
+
+    //calculates new local coordinate for front of craft
+    IrrLocalCraftFrontPnt = pos_in_worldspace_frontPos;
+
+    irr::core::vector3df WCDirVecFrontToCOG = (NewPosition - NewFrontAt);
+    irr::core::vector3df WCDirVecCOGtoBack = NewPosition + WCDirVecFrontToCOG;
+
+    matr.transformVect(WCDirVecCOGtoBack);
+    IrrLocalCraftBackPnt = WCDirVecCOGtoBack;
+
+    irr::core::vector3d<irr::f32> VectorUp(0.0f, 1.0f, 0.0f);
+    WCDirVecFrontToCOG.normalize();
+    irr::core::vector3df sideDirToLeft = WCDirVecFrontToCOG.crossProduct(VectorUp);
+
+    //define a local craft coordinate that is independent of the craft model size,
+    //so that for physics control the behavior of the craft does not depend on the model
+    //otherwise models like the berserker are much more difficult to control
+  //  LocalCraftForceCntrlPnt = LocalCraftOrigin - WCDirVecFrontToCOG * irr::core::vector3df(0.5f, 0.5f, 0.5f);
+
+    sideDirToLeft.normalize();
+    irr::core::vector3df WCDirVecCOGtoLeft = NewPosition - sideDirToLeft * WCDirVecFrontToCOG.getLength();
+
+    matr.transformVect(WCDirVecCOGtoLeft);
+    IrrLocalCraftLeftPnt = WCDirVecCOGtoLeft;
+
+    irr::core::vector3df WCDirVecCOGtoRight = NewPosition + sideDirToLeft * WCDirVecFrontToCOG.getLength();
+    matr.transformVect(WCDirVecCOGtoRight);
+    IrrLocalCraftRightPnt = WCDirVecCOGtoRight;
+
+    //LocalTopLookingCamPosPnt = WCDirVecCOGtoBack + irr::core::vector3df(0.0f, 1.2f, 0.5f);     //attempt since 04.09.2024
+    //LocalTopLookingCamTargetPnt = WCDirVecFrontToCOG + irr::core::vector3df(0.0f, 1.1f, 0.0f); //attempt since 04.09.2024
+
+    //LocalSideLookingCamPosPnt = WCDirVecCOGtoRight + irr::core::vector3df(-1.5f, 0.4f, 0.0f);
+    //LocalSideLookingCamTargetPnt = irr::core::vector3df(0.0f, 0.0f, 0.0f);
+
+    //Local1stPersonCamPosPnt = LocalCraftOrigin + irr::core::vector3df(0.0f, 0.2f, 0.4f);
+    //Local1stPersonCamTargetPnt = Local1stPersonCamPosPnt + irr::core::vector3df(0.0f, 0.0f, -0.2f);
+
+    //LocalCraftAboveCOGStabilizationPoint = irr::core::vector3df(0.0f, 1.0f, 0.0f);
+
+    //define where from the craft the smoke emitts when the player
+    //health is very low, let it emit from the backside of the player model
+   /* irr::core::vector3df hlpVec = Player_node->getTransformedBoundingBox().getExtent();
+
+    LocalCraftSmokePnt.Z = hlpVec.Z * 0.5f;
+    LocalCraftSmokePnt.X = 0.0f;
+    LocalCraftSmokePnt.Y = hlpVec.Y * 0.5f;
+
+    //define where from the craft dust clouds are emitted, when hovering outside of the race
+    //track
+    LocalCraftDustPnt.X = 0.0f;
+    LocalCraftDustPnt.Y = -hlpVec.Y * 0.3f;
+    LocalCraftDustPnt.Z = 0.0f;*/
+
+   /* CreateHMapCollisionPointData();
+
+    LocalCraftFrontPnt = mHMapCollPntData.front->localPnt1;
+    LocalCraftBackPnt = mHMapCollPntData.back->localPnt1;
+    LocalCraftLeftPnt = mHMapCollPntData.left->localPnt1;
+    LocalCraftRightPnt = mHMapCollPntData.right->localPnt1;*/
 }
 
 VVehicle::~VVehicle() {

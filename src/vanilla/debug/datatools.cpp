@@ -135,38 +135,6 @@ std::string FixedPointInt16_8R8Num::GetAsString() {
     return output.str();
 }
 
-FixedPointInt32_16R16Num::FixedPointInt32_16R16Num(DataTools* parent, std::string name, size_t start_position) {
-    mParent = parent;
-    mName = name;
-    mRawValue = mParent->ConvertByteArray_ToInt32(start_position);
-    mFloatValue = mParent->FixedPointToFloat16D16(mRawValue);
-}
-
-std::string FixedPointInt32_16R16Num::GetAsString() {
-    std::ostringstream output;
-
-    output << mName << ": 0x" << std::setfill('0') << std::setw(8) <<
-                 std::right << std::uppercase << std::hex << mRawValue << " (" << mFloatValue << "f)";
-
-    return output.str();
-}
-
-FixedPointInt32_24R8Num::FixedPointInt32_24R8Num(DataTools* parent, std::string name, size_t start_position) {
-    mParent = parent;
-    mName = name;
-    mRawValue = mParent->ConvertByteArray_ToInt32(start_position);
-    mFloatValue = mParent->FixedPointToFloat24D8(mRawValue);
-}
-
-std::string FixedPointInt32_24R8Num::GetAsString() {
-    std::ostringstream output;
-
-    output << mName << ": 0x" << std::setfill('0') << std::setw(8) <<
-                 std::right << std::uppercase << std::hex << mRawValue << " (" << mFloatValue << "f)";
-
-    return output.str();
-}
-
 FixedPointInt32_8R8Num::FixedPointInt32_8R8Num(DataTools* parent, std::string name, size_t start_position) {
     mParent = parent;
     mName = name;
@@ -194,22 +162,6 @@ std::string FixedPointInt16_8R8NumAngle::GetAsString() {
     std::ostringstream output;
 
     output << mName << ": 0x" << std::setfill('0') << std::setw(4) <<
-                 std::right << std::uppercase << std::hex << mRawValue << " (" << mFloatValue << "f °)";
-
-    return output.str();
-}
-
-FixedPointInt32_16R16NumAngle::FixedPointInt32_16R16NumAngle(DataTools* parent, std::string name, size_t start_position) {
-    mParent = parent;
-    mName = name;
-    mRawValue = mParent->ConvertByteArray_ToInt32(start_position);
-    mFloatValue = mParent->VanillaRawAngle32BitsToMyFloatingAngle(mRawValue);
-}
-
-std::string FixedPointInt32_16R16NumAngle::GetAsString() {
-    std::ostringstream output;
-
-    output << mName << ": 0x" << std::setfill('0') << std::setw(8) <<
                  std::right << std::uppercase << std::hex << mRawValue << " (" << mFloatValue << "f °)";
 
     return output.str();
@@ -273,16 +225,6 @@ FixedPointInt16_8R8Num* DataTools::AddFixedPointInt16_8R8NumVar(std::string name
     return newVar;
 }
 
-FixedPointInt32_16R16Num* DataTools::AddFixedPointInt32_16R16NumVar(std::string name, size_t start_position) {
-    FixedPointInt32_16R16Num* newVar = new FixedPointInt32_16R16Num(this, name, start_position);
-    return newVar;
-}
-
-FixedPointInt32_24R8Num* DataTools::AddFixedPointInt32_24R8NumVar(std::string name, size_t start_position) {
-    FixedPointInt32_24R8Num* newVar = new FixedPointInt32_24R8Num(this, name, start_position);
-    return newVar;
-}
-
 FixedPointInt32_8R8Num* DataTools::AddFixedPointInt32_8R8NumVar(std::string name, size_t start_position) {
     FixedPointInt32_8R8Num* newVar = new FixedPointInt32_8R8Num(this, name, start_position);
     return newVar;
@@ -290,11 +232,6 @@ FixedPointInt32_8R8Num* DataTools::AddFixedPointInt32_8R8NumVar(std::string name
 
 FixedPointInt16_8R8NumAngle* DataTools::AddFixedPointInt16_8R8NumVarAngle(std::string name, size_t start_position) {
     FixedPointInt16_8R8NumAngle* newVar = new FixedPointInt16_8R8NumAngle(this, name, start_position);
-    return newVar;
-}
-
-FixedPointInt32_16R16NumAngle* DataTools::AddFixedPointInt32_16R16NumVarAngle(std::string name, size_t start_position) {
-    FixedPointInt32_16R16NumAngle* newVar = new FixedPointInt32_16R16NumAngle(this, name, start_position);
     return newVar;
 }
 
@@ -308,22 +245,6 @@ float DataTools::FixedPointToFloat8D8(int16_t fixedPntVal) {
     int8_t intPart = static_cast<int8_t>((fixedPntVal >> 8) & 0x00FF);
     float result = (float)(intPart);
     result += (fixedPntVal & 0x00FF) / 256.0f;
-    return result;
-}
-
-//Convert a fixed point number (24.8 format) to a float
-float DataTools::FixedPointToFloat24D8(int32_t fixedPntVal) {
-    int32_t intPart = static_cast<int32_t>((fixedPntVal >> 8) & 0x00FFFFFF);
-    float result = (float)(intPart);
-    result += (fixedPntVal & 0x000000FF) / 256.0f;
-    return result;
-}
-
-//Convert a fixed point number (16.16 format) to a float
-float DataTools::FixedPointToFloat16D16(int32_t fixedPntVal) {
-    int16_t intPart = static_cast<int16_t>((fixedPntVal >> 16) & 0x0000FFFF);
-    float result = (float)(intPart);
-    result += (fixedPntVal & 0x0000FFFF) / 65536.0f;
     return result;
 }
 

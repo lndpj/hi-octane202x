@@ -109,34 +109,6 @@ private:
     int16_t mRawValue;
 };
 
-class FixedPointInt32_16R16Num {
-public:
-    FixedPointInt32_16R16Num(DataTools* parent, std::string name, size_t start_position);
-
-    std::string GetAsString();
-
-    float mFloatValue;
-
-private:
-    std::string mName;
-    DataTools* mParent = nullptr;
-    int32_t mRawValue;
-};
-
-class FixedPointInt32_24R8Num {
-public:
-    FixedPointInt32_24R8Num(DataTools* parent, std::string name, size_t start_position);
-
-    std::string GetAsString();
-
-    float mFloatValue;
-
-private:
-    std::string mName;
-    DataTools* mParent = nullptr;
-    int32_t mRawValue;
-};
-
 class FixedPointInt32_8R8Num {
 public:
     FixedPointInt32_8R8Num(DataTools* parent, std::string name, size_t start_position);
@@ -163,20 +135,6 @@ private:
     std::string mName;
     DataTools* mParent = nullptr;
     int16_t mRawValue;
-};
-
-class FixedPointInt32_16R16NumAngle {
-public:
-    FixedPointInt32_16R16NumAngle(DataTools* parent, std::string name, size_t start_position);
-
-    std::string GetAsString();
-
-    float mFloatValue;
-
-private:
-    std::string mName;
-    DataTools* mParent = nullptr;
-    int32_t mRawValue;
 };
 
 class FixedPointInt32_8R8NumAngle {
@@ -208,11 +166,6 @@ public:
 
     //Convert a fixed point number (8.8 format) to a float
     float FixedPointToFloat8D8(int16_t fixedPntVal);
-    //Convert a fixed point number (16.16 format) to a float
-    float FixedPointToFloat16D16(int32_t fixedPntVal);
-
-    //Convert a fixed point number (24.8 format) to a float
-    float FixedPointToFloat24D8(int32_t fixedPntVal);
 
     UInt8_Num* AddUInt8_NumVar(std::string name, size_t start_position);
     UInt16_Num* AddUInt16_NumVar(std::string name, size_t start_position);
@@ -222,12 +175,9 @@ public:
     Int32_Num* AddInt32_NumVar(std::string name, size_t start_position);
 
     FixedPointInt16_8R8Num* AddFixedPointInt16_8R8NumVar(std::string name, size_t start_position);
-    FixedPointInt32_16R16Num* AddFixedPointInt32_16R16NumVar(std::string name, size_t start_position);
     FixedPointInt32_8R8Num* AddFixedPointInt32_8R8NumVar(std::string name, size_t start_position);
-    FixedPointInt32_24R8Num* AddFixedPointInt32_24R8NumVar(std::string name, size_t start_position);
 
     FixedPointInt16_8R8NumAngle* AddFixedPointInt16_8R8NumVarAngle(std::string name, size_t start_position);
-    FixedPointInt32_16R16NumAngle* AddFixedPointInt32_16R16NumVarAngle(std::string name, size_t start_position);
     FixedPointInt32_8R8NumAngle* AddFixedPointInt32_8R8NumVarAngle(std::string name, size_t start_position);
 
     //original "raw" angles (for example in thing->Movement.Angle.ZY, is struct Angle)
