@@ -91,9 +91,11 @@ struct VehicleCollideControlStruct {
 };
 
 struct VehicleStatsStruct {
-    irr::f32 Velocity;
-
     int16_t Behind;
+    int16_t Fuel;
+
+    int16_t Health;
+    irr::f32 Velocity;
 };
 
 /************************
@@ -119,11 +121,13 @@ public:
 
     irr::scene::ICameraSceneNode* mOutsideCam = nullptr;
 
+    //Thing data
+    ThingDataStruct ThingData;
+
 private:
     Race* mRace = nullptr;
 
-    //Thing data
-    ThingDataStruct ThingData;
+public:
 
     MomentumStruct Momentum;
 
@@ -144,13 +148,6 @@ private:
     //Stats
     VehicleStatsStruct Stats;
 
-    //variables which only I use in my project
-    irr::f32 mAbsTimeIntegrator = 0.0f;
-
-    //the mesh for the Irrlicht SceneNode model
-    irr::scene::IAnimatedMesh* mCraftMesh = nullptr;
-    irr::scene::IMeshSceneNode* mCraftNode = nullptr;
-
     irr::f32 mThrustEffectiveness = 0.0f;
     irr::f32 mSideslipFriction = 0.0f;
     irr::f32 mSideslipToThrust = 0.0f;
@@ -160,6 +157,14 @@ private:
     irr::f32 mFrictionLimit = 0.0f;
     irr::f32 mBounce = 0.0f;
     irr::f32 mMaximumZpos = 0.0f;
+private:
+
+    //variables which only I use in my project
+    irr::f32 mAbsTimeIntegrator = 0.0f;
+
+    //the mesh for the Irrlicht SceneNode model
+    irr::scene::IAnimatedMesh* mCraftMesh = nullptr;
+    irr::scene::IMeshSceneNode* mCraftNode = nullptr;
 
     void SetupFlightModelConstants();
 

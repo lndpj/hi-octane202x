@@ -36,6 +36,7 @@
 #include "../game.h"
 #include "../vanilla/vcalc.h"
 #include "../draw/drawdebug.h"
+#include "debug/dbginterface.h"
 
 void VVehicle::Update(irr::f32 frameDeltaTime) {
     //we want to increment mTimeSlice every 50ms
@@ -53,12 +54,30 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
 
     irr::core::vector3df delta;
 
-    if (mRace->AdvModel) {
+    //if (mRace->AdvModel) {
+       //mRace->mVDbgInterface->Init(std::string("20052026.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
+        // mRace->mVDbgInterface->Init(std::string("testfile.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
+        //mRace->mVDbgInterface->Init(std::string("beforeangle.bin"), std::string("afterangle.bin"), std::string("extract/level0-1/level0-1-unpacked.dat"));
+
+
+        //mRace->mVDbgInterface->CompareVehicleStateBetweenMemDumps(mRace->mVDbgInterface->newDump, mRace->mVDbgInterface->newDump2);
+
+        //Playstation 1 emulator executes this vehicle update loop average every 1721634 CPU cycles
+        //CPU clocks at 33.8688 MHz, which means lets run this loop every ~50.83 ms
+
         vehicle_control_from_player();
+
         vehicle_get_track_friction();
         vehicle_calculate_angle();
+
+        //mRace->mVDbgInterface->CompareVehicleStatePlayerWithMemDump(*this, mRace->mVDbgInterface->newDump2);
+
+         //mRace->mVDbgInterface->SetVehicleStatePlayerFromMemDump(*this, mRace->mVDbgInterface->newDump);
+
         vehicle_calculate_thrust(delta);
         mRace->mVCalc->move_displacement_slope(ThingData.Position, Slope);
+
+
         vehicle_calculate_momentum(delta);
         vehicle_calculate_movement_delta(delta);
         vehicle_colide_map(delta);
@@ -66,10 +85,11 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         vehicle_move_roll(delta);
         vehicle_move_tilt(delta);
         vehicle_move_mapwho(delta);
-        mRace->AdvModel = false;
-    }
 
-    UpdateSceneNode();
+       // mRace->AdvModel = false;
+   // }
+
+        UpdateSceneNode();
    // UpdateCamera();
 }
 
@@ -155,6 +175,9 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    FlightModel.FunctionFlag.Booster = true;
    FlightModel.FunctionFlag.BarrelRoll = true;
 
+   Stats.Health = 10000;
+   Stats.Fuel = 10000;
+
    mCraftMesh = mRace->mGame->mSmgr->getMesh(irr::io::path("extract/models/car0-0.obj"));
    mCraftNode = mRace->mGame->mSmgr->addMeshSceneNode(mCraftMesh);
 
@@ -170,7 +193,7 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    mCraftNode->setScale(irr::core::vector3d<irr::f32>(1,1,1));
    mCraftNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
    mCraftNode->setMaterialFlag(irr::video::EMF_FOG_ENABLE, true);
-   mCraftNode->setVisible(true);
+   //mCraftNode->setVisible(true);
 
    //mOutsideCam = mRace->mGame->mSmgr->addCameraSceneNode(0, irr::core::vector3df(0,0,0), irr::core::vector3df(0,0,100), -1, false);
 }
@@ -178,6 +201,7 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
 void VVehicle::vehicle_get_track_friction() {
     if (FlightModel.Flag.Airbourn) {
         //if we are currently air bourne there is no friction
+        //logging::Info("AirBourn");
         mFriction = 0.0f;
         return;
     }
@@ -208,6 +232,10 @@ void VVehicle::vehicle_get_track_friction() {
         }
 
         mFriction = newFriction;
+
+        //std::ostringstream outputMsg;
+        //outputMsg << "New Friction value = " << mFriction;
+        //logging::Info(outputMsg.str());
     }
 }
 
@@ -253,7 +281,30 @@ LABEL_18_vehicle_calculate_angle:
 }
 
 void VVehicle::vehicle_calculate_thrust(irr::core::vector3df& delta) {
-    //TODO: add autodrive stuff at the top of this routine
+    irr::f32 v6;
+    irr::f32 v13;
+    irr::f32 v14;
+
+    if ((Stats.Health > 0) || (FlightModel.Flag.AutoDrive)) {
+       v6 = MovementInput.SpeedActual;
+
+       if (fabs(v6) > 0.00390625f) {
+           Increment.SpeedActual += v6;
+
+           if (MovementInput.SpeedActual < 0.0f) {
+               //set the brake flag
+               FlightModel.Flag.Brake = true;
+           } else {
+               //clear the brake flag
+               FlightModel.Flag.Brake = false;
+           }
+       }
+    } else {
+        //Health is negative (so human player must not steer,
+        //and Autodrive is currently not set)
+        //so force zero speed
+        Increment.SpeedActual = 0.0f;
+    }
 
     if (Increment.SpeedActual >= 0.0f) {
         //we are not Deaccelerating right now
@@ -265,7 +316,20 @@ void VVehicle::vehicle_calculate_thrust(irr::core::vector3df& delta) {
         Increment.SpeedActual = 0.0f;
     }
 
-    //TODO: add stuff about out of fuel at the end of this function
+    //Are we out of fuel?
+    if (Stats.Fuel <= 0) {
+      v13 = Increment.SpeedActual;
+
+      if (v13 >= 0.0f) {
+          v14 = IncrementLimit.SpeedActual * 0.5f;
+          if (v14 < v13) {
+              Increment.SpeedActual = v14;
+          }
+      } else {
+          Increment.SpeedActual = 0.0f;
+      }
+    }
+
     ThingData.Movement.SpeedActual = (mThrustEffectiveness * Increment.SpeedActual) / 0.390625f;
     mRace->mVCalc->move_displacement_set(delta, ThingData.Movement.AngleXY, 0.0f, (ThingData.Movement.SpeedActual / 16.0f));
     ThingData.Movement.SpeedActual = Increment.SpeedActual;
@@ -273,6 +337,7 @@ void VVehicle::vehicle_calculate_thrust(irr::core::vector3df& delta) {
 
 void VVehicle::vehicle_calculate_momentum(irr::core::vector3df& delta) {
     irr::core::vector3df v44;
+    irr::core::vector3df v50;
 
     delta.X += (Slope.X / 64.0f);
     delta.Y += (Slope.Y / 64.0f);
@@ -308,13 +373,75 @@ void VVehicle::vehicle_calculate_momentum(irr::core::vector3df& delta) {
 
         //** Add the missing booster stuff later **/
 
-        if (FlightModel.Flag.Brake) {
-            if (FlightModel.FunctionFlag.Brake) {
-                Momentum.DeltaX *= (0.9765625f - FlightModel.BrakePower);
-                Momentum.DeltaY *= (0.9765625f - FlightModel.BrakePower);
-            }
+        //Keep double for DeltaX and DeltaY!
+        double DeltaX = (double)(Momentum.DeltaX);
+        double DeltaY = (double)(Momentum.DeltaY);
 
-        }
+        irr::f32 speedValConst = 4.0f;
+
+        int8_t v55 =
+                mRace->mVCalc->move_displacement_set(v50, ThingData.Movement.AngleXY, 0.0f, speedValConst);
+
+        //with the code below the disassembler had some issues, and the Pseudo-C Code
+        //was unusable; Therefore this is based on a longer assembly study session, and stepping
+        //with the Playstation 1 Emulator debugger, Pretty weird code
+        double floatV50_X = (double)(v50.X);
+        double floatV50_Y = (double)(v50.Y);
+
+        floatV50_X = floatV50_X / speedValConst;
+        floatV50_Y = floatV50_Y / speedValConst;
+
+        double multXRes = floatV50_X * DeltaX * 256.0;
+        double multYRes = floatV50_Y * DeltaY * 256.0;
+
+        double sum = multXRes + multYRes;
+
+        double multXResSum = floatV50_X * sum;
+        double multYResSum = floatV50_Y * sum;
+
+        int32_t multXResSumInt = (int32_t)(multXResSum);
+        int32_t multYResSumInt = (int32_t)(multYResSum);
+
+        v44.X = mRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(multXResSumInt));
+        v44.Y = mRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(multYResSumInt));
+        v44.Z = 0.0f;
+
+        double v45_var70 = DeltaX - (double)(v44.X);
+        double v45_var70_plus2 = DeltaY - (double)(v44.Y);
+        double v46_var6C = (double)(v44.Z);
+
+        v44.X *= (0.9765625f - mFriction);
+        v44.Y *= (0.9765625f - mFriction);
+
+        Momentum.DeltaX = v44.X;
+        Momentum.DeltaY = v44.Y;
+
+        double v47 = v45_var70_plus2;
+        double v48 = v46_var6C;
+
+        v45_var70 *= (0.9765625 - (double)(mSideslipFriction) - (double)(mFriction));
+        v45_var70_plus2 *= (0.9765625 - (double)(mSideslipFriction) - (double)(mFriction));
+
+        Momentum.DeltaX += (irr::f32)(v45_var70);
+        Momentum.DeltaY += (irr::f32)(v45_var70_plus2);
+
+        double v35 = (v47 - v45_var70_plus2) * (v47 - v45_var70_plus2);
+        v45_var70_plus2 = v47 - v45_var70_plus2;
+        v45_var70 = v47 - v45_var70_plus2;
+        v46_var6C = v48 - v46_var6C;
+
+        double v36 = sqrt(v35 + v45_var70 * v45_var70);
+        mRace->mVCalc->move_displacement_set(v44, ThingData.Movement.AngleXY, 0.0f, (irr::f32)(v36));
+
+        Momentum.DeltaX += v44.X * (mSideslipFriction / 100.0f);
+        Momentum.DeltaY += v44.Y * (mSideslipFriction / 100.0f);
+    }
+
+    if (FlightModel.Flag.Brake) {
+       if (FlightModel.FunctionFlag.Brake) {
+            Momentum.DeltaX *= (0.9765625f - FlightModel.BrakePower);
+            Momentum.DeltaY *= (0.9765625f - FlightModel.BrakePower);
+       }
     }
 }
 
@@ -472,6 +599,8 @@ void VVehicle::vehicle_move_roll(irr::core::vector3df& delta) {
     irr::f32 craftHeightDiff;
     irr::f32 absCraftHeightDiff;
     bool v9;
+    int32_t intPart;
+    irr::f32 fracPart;
 
     if (FlightModel.Flag.Airbourn) {
         //yes, we are in the air right now
@@ -484,9 +613,12 @@ void VVehicle::vehicle_move_roll(irr::core::vector3df& delta) {
 
     absCraftHeightDiff = fabs(craftHeightDiff);
 
+    intPart = (int32_t)(craftHeightDiff);
+    fracPart = craftHeightDiff - (irr::f32)(intPart);
+
     if (absCraftHeightDiff < (2.0f * FlightModel.SizeSideways)) {
         v10 = ThingData.Movement.AngleXZ +
-                (mRace->mVCalc->arctanPlusMultiply32(craftHeightDiff, -2.0f * FlightModel.SizeSideways)
+                (mRace->mVCalc->arctanPlusMultiply32(fracPart, -2.0f * FlightModel.SizeSideways)
                  -ThingData.Movement.AngleXZ) / 8.0f;
 
         ThingData.Movement.AngleXZ = v10;
@@ -831,9 +963,9 @@ void VVehicle::UpdateSceneNode() {
     ModelRoll(mCraftNode, ThingData.Movement.AngleXZ);       //Later change to View variable and add vehicle_set_camera
 
     //finally move model to new 3D Position
-    irr::core::vector3df newPos(-ThingData.Position.X, ThingData.Position.Z, ThingData.Position.Y);
+    irr::core::vector3df newPos = mRace->mVCalc->VanillaToIrrlichtCoord(ThingData.Position);
     mCraftNode->setPosition(newPos);
-    mCraftNode->setVisible(false);
+    //mCraftNode->setVisible(false);
 }
 
 void VVehicle::DrawDebug() {

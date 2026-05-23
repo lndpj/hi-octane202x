@@ -62,6 +62,8 @@
 #include "resources/texture.h"
 #include "resources/mapentry.h"
 
+#include "vanilla/debug/dbginterface.h"
+
 #include "game.h"
 #include "race.h"
 #include "infrabase.h"
@@ -635,6 +637,11 @@ Race::~Race() {
 
     for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
         (*it)->SetMyHUD(nullptr);
+    }
+
+    if (mVDbgInterface != nullptr) {
+        delete mVDbgInterface;
+        mVDbgInterface = nullptr;
     }
 
     //now we can free the HUD
@@ -1947,6 +1954,8 @@ void Race::Init() {
 
     //for debugging vanilla stuff
     if (mAddVVehicle) {
+        mVDbgInterface = new DbgInterface();
+
         this->mVCalc->Verify_vanilla_calculations();
 
         irr::core::vector3df testVehiclePos(-15.0f, 11.0f, 105.0f);
@@ -3348,7 +3357,7 @@ void Race::Render() {
     // mVCalc->DebugDraw();
 
     if (mVCraft != nullptr) {
-        mVCraft->DrawDebug();
+        //mVCraft->DrawDebug();
     }
 }
 
