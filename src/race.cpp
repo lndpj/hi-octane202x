@@ -2758,9 +2758,10 @@ void Race::HandleInput(irr::f32 deltaTime) {
             bool playerNoTurningKeyPressed = true;
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_UP)) {
-               // mPlayerVec.at(0)->Forward(deltaTime);
                 if (mAddVVehicle) {
                 mVCraft->KeyPressedAccel = true;
+                } else {
+                     mPlayerVec.at(0)->Forward(deltaTime);
                 }
              } else {
                  if (mAddVVehicle) {
@@ -2770,9 +2771,10 @@ void Race::HandleInput(irr::f32 deltaTime) {
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_DOWN))
              {
-                //mPlayerVec.at(0)->Backward(deltaTime);
                 if (mAddVVehicle) {
                 mVCraft->KeyPressedDeaccel = true;
+                } else {
+                    mPlayerVec.at(0)->Backward(deltaTime);
                 }
              } else {
                  if (mAddVVehicle) {
@@ -2788,11 +2790,12 @@ void Race::HandleInput(irr::f32 deltaTime) {
              }
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_LEFT)) {
-                 // mPlayerVec.at(0)->Left();
-                  //mPlayerVec.at(0)->firstNoKeyPressed = true;
                   playerNoTurningKeyPressed = false;
                   if (mAddVVehicle) {
                     mVCraft->KeyPressedTurnLeft = true;
+                  } else {
+                       mPlayerVec.at(0)->Left();
+                       mPlayerVec.at(0)->firstNoKeyPressed = true;
                   }
              } else {
                  if (mAddVVehicle) {
@@ -2801,11 +2804,12 @@ void Race::HandleInput(irr::f32 deltaTime) {
              }
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_RIGHT)) {
-                 // mPlayerVec.at(0)->Right();
-                 // mPlayerVec.at(0)->firstNoKeyPressed = true;
                   playerNoTurningKeyPressed = false;
                   if (mAddVVehicle) {
                     mVCraft->KeyPressedTurnRight = true;
+                  } else {
+                       mPlayerVec.at(0)->Right();
+                       mPlayerVec.at(0)->firstNoKeyPressed = true;
                   }
              } else {
                  if (mAddVVehicle) {
@@ -4478,13 +4482,16 @@ void Race::ManagePlayerCamera() {
     if (playerCamera) {
         //get active camera of currently selected
         //player, and check if it has changed
-        // if (this->currPlayerFollow != nullptr) {
-        //     activeCam = this->currPlayerFollow->DeliverActiveCamera();
+        if (!mAddVVehicle) {
+            if (this->currPlayerFollow != nullptr) {
+                activeCam = this->currPlayerFollow->DeliverActiveCamera();
 
-        //     //do we need to hide the player model?
-        //     hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
-        // }
-        activeCam = mVCraft->mOutsideCam;
+                //do we need to hide the player model?
+                hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
+            }
+        } else {
+            activeCam = mVCraft->mOutsideCam;
+        }
     } else {
         //free moving camera to inspect the level/map
         //make sure to unhide all player models

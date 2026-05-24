@@ -569,7 +569,8 @@ private:
 
     void CreateChargingStations();
 
-    bool mAddVVehicle = true;
+    //Switch for the vanillia model
+    bool mAddVVehicle = false;
 
     //for improved sky
     irr::scene::ISceneNode* skydomeNode = nullptr;
