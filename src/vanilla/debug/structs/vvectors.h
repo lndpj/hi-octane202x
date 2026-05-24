@@ -7,8 +7,8 @@
 
  You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.                                          */
 
-#ifndef BASICSTRUCTS_H
-#define BASICSTRUCTS_H
+#ifndef VVECTORS_H
+#define VVECTORS_H
 
 #include <vector>
 #include <stdlib.h>
@@ -18,59 +18,69 @@
 class MemDump;
 class UInt8_Num;
 class UInt16_Num;
+class UInt32_Num;
+class Int8_Num;
 class Int16_Num;
 class Int32_Num;
 class FixedPointInt16_8R8Num;
-class FixedPointInt32_8R8Num;
 class FixedPointInt16_8R8NumAngle;
 class DataTools;
+class Coord2DClass;
+class Coord3DClass;
+class MovementClass;
 
-class Coord3DClass {
+class ParseColVectClass {
 public:
-    Coord3DClass(DataTools* parent, std::string name, size_t startPosData);
-    ~Coord3DClass();
+    ParseColVectClass(DataTools* parent, std::string name, size_t startPosData);
+    ~ParseColVectClass();
 
     std::string GetAsString();
 
-    FixedPointInt16_8R8Num* XPos = nullptr;
-    FixedPointInt16_8R8Num* YPos = nullptr;
-    FixedPointInt16_8R8Num* ZPos = nullptr;
+    Coord3DClass* Pos1 = nullptr;
+    Coord3DClass* Pos2 = nullptr;
+    FixedPointInt16_8R8NumAngle* Angle = nullptr;
 
 private:
     DataTools* mParent = nullptr;
     std::string mName;
 };
 
-class Coord2DClass {
+class ParseColVectsListClass {
 public:
-    Coord2DClass(DataTools* parent, std::string name, size_t startPosData);
-    ~Coord2DClass();
+    ParseColVectsListClass(DataTools* parent, std::string name, size_t startPosData);
+    ~ParseColVectsListClass();
 
     std::string GetAsString();
 
-    FixedPointInt16_8R8Num* XPos = nullptr;
-    FixedPointInt16_8R8Num* YPos = nullptr;
+    UInt16_Num* Vect = nullptr;
+    UInt16_Num* NextColList = nullptr;
 
 private:
     DataTools* mParent = nullptr;
     std::string mName;
 };
 
-class MovementClass {
+class ParseVectors {
 public:
-    MovementClass(DataTools* parent, std::string name, size_t startPosData);
-    ~MovementClass();
+    ParseVectors(MemDump* parentMemdump);
+    ~ParseVectors();
 
-    std::string GetAsString();
+    ParseColVectClass* ColVects[250];
+    ParseColVectsListClass* ColVectsList[10000];
 
-    FixedPointInt16_8R8NumAngle* AngleXY = nullptr;
-    FixedPointInt16_8R8NumAngle* AngleZY = nullptr;
-    FixedPointInt16_8R8NumAngle* AngleXZ = nullptr;
-    FixedPointInt32_8R8Num* SpeedActual = nullptr;
+    Coord2DClass* TrackCollisionVector = nullptr;
+    UInt16_Num* NextColVect = nullptr;
+    UInt16_Num* NextVectsList = nullptr;
+    FixedPointInt16_8R8NumAngle* TrackCollisionVectorAngle = nullptr;
+
+    void Update(size_t fromAdr);
+    void Print();
 
 private:
-    DataTools* mParent = nullptr;
-    std::string mName;
+    MemDump* mParentMemDump = nullptr;
+
+public:
+
 };
 
-#endif // BASICSTRUCTS_H
+#endif // VVECTORS_H

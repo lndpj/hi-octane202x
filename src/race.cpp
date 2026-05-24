@@ -25,6 +25,8 @@
 #include "utils/fileutils.h"
 #include "utils/gamedbgwnd.h"
 #include "vanilla/vcalc.h"
+#include "vanilla/vtrack.h"
+#include "vanilla/debug/memdump.h"
 
 #include "draw/hud.h"
 
@@ -642,6 +644,11 @@ Race::~Race() {
     if (mVDbgInterface != nullptr) {
         delete mVDbgInterface;
         mVDbgInterface = nullptr;
+    }
+
+    if (mVTrack != nullptr) {
+        delete mVTrack;
+        mVTrack = nullptr;
     }
 
     //now we can free the HUD
@@ -3699,6 +3706,7 @@ bool Race::LoadLevel() {
    //Add the original game calculation low level routines and mechanics I tried to
    //reproduce to be hopefully working together with this existing project
    mVCalc = new VCalculations(mGame, mLevelRes, mLevelTerrain, mLevelBlocks);
+   mVTrack = new VTrack(this);
 
    //Add test thing
    //mVCalc->AddTestObject(irr::core::vector3df(-10.0f, 11.5f, 60.0f));
@@ -4829,6 +4837,18 @@ void Race::createEntity(EntityItem *p_entity,
 
                 //remember a line between both waypoints for debugging purposes
                 ENTWallsegmentsLine_List->push_back(line);
+
+                irr::core::vector3df vanillaPosNext = next->getCenter();
+                vanillaPosNext.X = -vanillaPosNext.X;
+                vanillaPosNext.Y = vanillaPosNext.Z;
+                vanillaPosNext.Z = 0.0f; //the game has at this point of time no height information
+
+                irr::core::vector3df vanillaPosEntity = entity.getCenter();
+                vanillaPosEntity.X = -vanillaPosEntity.X;
+                vanillaPosEntity.Y = vanillaPosEntity.Z;
+                vanillaPosEntity.Z = 0.0f;  //the game has at this point of time no height information
+
+                mVTrack->insert_vect(vanillaPosNext, vanillaPosEntity);
             }
            ENTWallsegments_List->push_back(p_entity);
            break;

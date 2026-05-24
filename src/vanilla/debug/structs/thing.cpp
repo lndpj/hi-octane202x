@@ -41,8 +41,6 @@ void ParseThing::Print() {
     std::cout << TimeSlice->GetAsString() << std::endl;
 }
 
- std::string GetAsString();
-
 void ParseThing::Update(size_t fromAdr) {
     Position = new Coord3DClass(mParentMemDump->mDataTools, std::string("Position"), fromAdr);
     Movement = new MovementClass(mParentMemDump->mDataTools, std::string("Movement"), fromAdr + 0x10);

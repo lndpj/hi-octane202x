@@ -1156,6 +1156,10 @@ irr::f32 VCalculations::angle_get_xy(irr::core::vector3df position_from, irr::co
                                 position_to.Y - position_from.Y);
 }
 
+irr::f32 VCalculations::angle_get_difference(irr::f32 angle1, irr::f32 angle2) {
+    return (angle2 - angle1);
+}
+
 /***************************************************
  * Conversion Routines                             *
  ***************************************************/

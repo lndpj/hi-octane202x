@@ -139,6 +139,7 @@ struct CloneAngle;
 struct CloneRecording;
 class VCalculations;
 class VVehicle;
+class VTrack;
 class DbgInterface;
 
 class Race {
@@ -150,6 +151,7 @@ public:
     ~Race();
 
     VVehicle* mVCraft = nullptr;
+    VTrack* mVTrack = nullptr;
     DbgInterface* mVDbgInterface = nullptr;
 
     bool ready;

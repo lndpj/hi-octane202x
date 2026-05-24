@@ -73,6 +73,7 @@ struct VehicleFunctionFlagsStruct {
     bool Booster;
     bool Brake;
     bool BarrelRoll;
+    bool Pad6;  //seems to be used during collision detection with vector collision
 };
 
 struct VehicleCollideControlStruct {
@@ -191,6 +192,7 @@ private:
     void vehicle_sensor_point_projection(irr::core::vector3df& delta);
     void vehicle_sensor_point_process(VehicleSensorPointStruct& sensor, irr::core::vector3df& slope, int8_t terrain);
     void vehicle_colide_map(irr::core::vector3df& delta);
+    void vehicle_colide_vectors(irr::core::vector3df& delta);
     void vehicle_move_mapwho(irr::core::vector3df& delta);
     void vehicle_set_camera();
 

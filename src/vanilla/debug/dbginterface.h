@@ -16,11 +16,15 @@
 #include <cstdint>
 #include <iomanip>
 #include "../vvehicle.h"
+#include "../vtrack.h"
 
 class MemDump;
 class BinaryFile;
 class MovementClass;
 class SensorPointClass;
+class ParseVectors;
+class ParseColVectClass;
+class ParseColVectsListClass;
 
 struct DiffByte {
     size_t atOffset;
@@ -39,6 +43,7 @@ public:
     void SetVehicleStatePlayerFromMemDump(VVehicle& targetVehicle, MemDump* srcDump);
     void CompareVehicleStatePlayerWithMemDump(VVehicle& compareVehicle, MemDump* compareDump);
     void CompareVehicleStateBetweenMemDumps(MemDump* dump1, MemDump* dump2);
+    void CompareVectorsWithMemDump(VTrack& compareVector1, ParseVectors* compareVector2);
 
     MemDump* newDump = nullptr;
     MemDump* newDump2 = nullptr;
@@ -56,10 +61,14 @@ private:
 
     void CompareTwoFloats(std::string varName, irr::f32 val1, irr::f32 val2);
     void CompareTwoInt16s(std::string varName, int16_t val1, int16_t val2);
+    void CompareTwoUInt16s(std::string varName, uint16_t val1, uint16_t val2);
     void CompareMovementData(std::string prefixName, MovementStruct* compareStruct, MovementClass* compareClass);
     void CompareSensorPointData(std::string prefixName, VehicleSensorPointStruct* compareStruct, SensorPointClass* compareClass);
     void CompareMovementDataBetweenMemDumps(std::string prefixName, MovementClass* compareClass1, MovementClass* compareClass2);
     void CompareSensorPointDataBetweenTwoMemDumpts(std::string prefixName, SensorPointClass* compareClass1, SensorPointClass* compareClass2);
+
+    void CompareTracksColVect(std::string prefixName, TrackColVectStruct& compareStruct, ParseColVectClass* compareClass);
+    void CompareTracksColVectList(std::string prefixName, TrackColVectListStruct& compareStruct, ParseColVectsListClass* compareClass);
 
     void CopyMovementClassToMovementStruct(MovementStruct& targetStruct, MovementClass* srcClass);
     void CopySensorPointClassToVehicleSensorPointStruct(VehicleSensorPointStruct& targetStruct, SensorPointClass* srcClass);

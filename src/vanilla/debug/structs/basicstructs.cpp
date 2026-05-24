@@ -13,6 +13,32 @@
 #include <iostream>
 #include <sstream>
 
+Coord2DClass::Coord2DClass(DataTools* parent, std::string name, size_t startPosData) {
+    mParent = parent;
+    mName = name;
+    XPos = mParent->AddFixedPointInt16_8R8NumVar(std::string("XPos"), startPosData);
+    YPos = mParent->AddFixedPointInt16_8R8NumVar(std::string("YPos"), startPosData + 0x2);
+}
+
+std::string Coord2DClass::GetAsString() {
+    std::ostringstream output;
+
+    output << mName << ": " << XPos->GetAsString() << ", " << YPos->GetAsString();
+
+    return output.str();
+}
+
+Coord2DClass::~Coord2DClass() {
+    if (XPos != nullptr) {
+        delete XPos;
+        XPos = nullptr;
+    }
+    if (YPos != nullptr) {
+        delete YPos;
+        YPos = nullptr;
+    }
+}
+
 Coord3DClass::Coord3DClass(DataTools* parent, std::string name, size_t startPosData) {
     mParent = parent;
     mName = name;

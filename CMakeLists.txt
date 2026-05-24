@@ -284,6 +284,8 @@ add_executable(hi-octane202x
     src/vanilla/vcalc.cpp
     src/vanilla/vvehicle.h
     src/vanilla/vvehicle.cpp
+    src/vanilla/vtrack.h
+    src/vanilla/vtrack.cpp
 
     src/vanilla/debug/dbginterface.h
     src/vanilla/debug/dbginterface.cpp
@@ -301,6 +303,8 @@ add_executable(hi-octane202x
     src/vanilla/debug/structs/thing.cpp
     src/vanilla/debug/structs/basicstructs.h
     src/vanilla/debug/structs/basicstructs.cpp
+    src/vanilla/debug/structs/vvectors.h
+    src/vanilla/debug/structs/vvectors.cpp
 
     src/utils/boundingbox/coord_frame.h
     src/utils/boundingbox/basis.h

@@ -15,6 +15,7 @@
 #include "structs/thing.h"
 #include "structs/thinglist.h"
 #include "structs/thingvehicle.h"
+#include "structs/vvectors.h"
 
 MemDump::MemDump(std::string dumpFile)
 {
@@ -24,6 +25,7 @@ MemDump::MemDump(std::string dumpFile)
    //Thing = new ParseThing(this);
    ThingList = new ParseThingList(this);
    ThingVehicle = new ParseThingVehicle(this);
+   Vectors = new ParseVectors(this);
 }
 
 MemDump::~MemDump() {
@@ -33,6 +35,11 @@ MemDump::~MemDump() {
     delete ThingList;
     delete ThingVehicle;
     delete mMemDumpData;
+    delete Vectors;
+}
+
+void MemDump::ReadVectors(size_t dumpLevelStructStart) {
+    Vectors->Update(dumpLevelStructStart + 0x4E5AC);
 }
 
 void MemDump::ReadThingList(size_t dumpLevelStructStart) {

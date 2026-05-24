@@ -17,6 +17,7 @@
 #include "structs/thing.h"
 #include "structs/thingvehicle.h"
 #include "structs/basicstructs.h"
+#include "structs/vvectors.h"
 #include "datatools.h"
 
 void DbgInterface::WriteDataToBinaryFile(std::string fileName, std::vector<uint8_t> data) {
@@ -99,10 +100,12 @@ void DbgInterface::Init(std::string memDumpFileName, std::string memDumpFileName
 
         newDump->ReadThingList(mDumpLevelStructStart);
         newDump->ReadAllThings(mDumpLevelStructStart);
+        newDump->ReadVectors(mDumpLevelStructStart);
 
         if (newDump2 != nullptr) {
             newDump2->ReadThingList(mDumpLevelStructStart);
             newDump2->ReadAllThings(mDumpLevelStructStart);
+            newDump2->ReadVectors(mDumpLevelStructStart);
         }
 
         //std::vector<ParseThing*> vehicles = newDump->ReturnThingsWithGroup(10);
@@ -121,6 +124,94 @@ void DbgInterface::CopyMovementClassToMovementStruct(MovementStruct& targetStruc
     targetStruct.AngleXZ = srcClass->AngleXZ->mFloatValue;
     targetStruct.AngleZY = srcClass->AngleZY->mFloatValue;
     targetStruct.SpeedActual = srcClass->SpeedActual->mFloatValue;
+}
+
+void DbgInterface::CompareTracksColVect(std::string prefixName, TrackColVectStruct& compareStruct, ParseColVectClass* compareClass) {
+    std::string name1(prefixName);
+    name1.append(".Pos1.X");
+    CompareTwoInt16s(name1, static_cast<int16_t>(compareStruct.pos1X), compareClass->Pos1->XPos->mRawValue);
+
+    name1 = prefixName;
+    name1.append(".Pos1.Y");
+    CompareTwoFloats(name1, static_cast<int16_t>(compareStruct.pos1Y), compareClass->Pos1->YPos->mRawValue);
+
+    name1 = prefixName;
+    name1.append(".Pos1.Z");
+    CompareTwoFloats(name1, static_cast<int16_t>(compareStruct.pos1Z), compareClass->Pos1->ZPos->mRawValue);
+
+    name1 = prefixName;
+    name1.append(".Pos2.X");
+    CompareTwoFloats(name1, static_cast<int16_t>(compareStruct.pos2X), compareClass->Pos2->XPos->mRawValue);
+
+    name1 = prefixName;
+    name1.append(".Pos2.Y");
+    CompareTwoFloats(name1, static_cast<int16_t>(compareStruct.pos2Y), compareClass->Pos2->YPos->mRawValue);
+
+    name1 = prefixName;
+    name1.append(".Pos2.Z");
+    CompareTwoFloats(name1, static_cast<int16_t>(compareStruct.pos2Z), compareClass->Pos2->ZPos->mRawValue);
+
+    name1 = prefixName;
+    name1.append(".Angle");
+    CompareTwoFloats(name1, compareStruct.Angle, compareClass->Angle->mFloatValue);
+}
+
+void DbgInterface::CompareTracksColVectList(std::string prefixName, TrackColVectListStruct& compareStruct, ParseColVectsListClass* compareClass) {
+    std::string extPrefixName(prefixName);
+    extPrefixName.append(".Vect");
+    CompareTwoInt16s(extPrefixName, compareStruct.Vect, static_cast<int16_t>(compareClass->Vect->mRawValue));
+
+    extPrefixName = prefixName;
+    extPrefixName.append(".NextColList");
+    CompareTwoInt16s(extPrefixName, compareStruct.NextColList, static_cast<int16_t>(compareClass->NextColList->mRawValue));
+}
+
+void DbgInterface::CompareVectorsWithMemDump(VTrack& compareVector1, ParseVectors* compareVector2) {
+    CompareTwoUInt16s(std::string("NextColVect"), static_cast<uint16_t>(compareVector1.NextColVect), compareVector2->NextColVect->mRawValue);
+    CompareTwoUInt16s(std::string("NextVectsList"), static_cast<uint16_t>(compareVector1.NextVectsList), compareVector2->NextVectsList->mRawValue);
+
+    CompareTwoInt16s(std::string("TrackCollisionVector.X"), static_cast<int16_t>(compareVector1.TrackCollisionVectorX), compareVector2->TrackCollisionVector->XPos->mRawValue);
+    CompareTwoInt16s(std::string("TrackCollisionVector.Y"), static_cast<int16_t>(compareVector1.TrackCollisionVectorY), compareVector2->TrackCollisionVector->YPos->mRawValue);
+
+    CompareTwoFloats(std::string("TrackCollisionVectorAngle"), compareVector1.TrackCollisionVectorAngle, compareVector2->TrackCollisionVectorAngle->mFloatValue);
+
+    size_t nrVects = static_cast<size_t>(compareVector1.NextColVect - 1);
+    size_t nrVects2 = static_cast<size_t>(compareVector2->NextColVect->mRawValue - 1);
+
+    if (nrVects2 < nrVects) {
+        nrVects = nrVects2;
+    }
+
+    if (nrVects > 250) {
+        nrVects = 250;
+    }
+
+    for (size_t idx = 1; idx < nrVects; idx++) {
+        std::ostringstream output;
+
+        output << "ColVect @" << std::dec << idx;
+
+        CompareTracksColVect(std::string(output.str()), compareVector1.ColVects[idx], compareVector2->ColVects[idx]);
+    }
+
+    size_t nrVectList = static_cast<size_t>(compareVector1.NextVectsList - 1);
+    size_t nrVectList2 = static_cast<size_t>(compareVector2->NextVectsList->mRawValue - 1);
+
+    if (nrVectList2 < nrVectList) {
+        nrVectList = nrVectList2;
+    }
+
+    if (nrVectList > 10000) {
+        nrVectList = 10000;
+    }
+
+    for (size_t idx = 1; idx < nrVectList; idx++) {
+        std::ostringstream output;
+
+        output << "ColVectsList @" << std::dec << int(idx);
+
+        CompareTracksColVectList(std::string(output.str()), compareVector1.ColVectsList[idx], compareVector2->ColVectsList[idx]);
+    }
 }
 
 void DbgInterface::CompareMovementData(std::string prefixName, MovementStruct* compareStruct, MovementClass* compareClass) {
@@ -286,6 +377,22 @@ void DbgInterface::CompareTwoFloats(std::string varName, irr::f32 val1, irr::f32
 }
 
 void DbgInterface::CompareTwoInt16s(std::string varName, int16_t val1, int16_t val2) {
+    if (val1 != val2) {
+        std::ostringstream outputMsg;
+
+        std::string decStr1 = std::to_string(val1);
+        std::string decStr2 = std::to_string(val2);
+
+        outputMsg << varName << ": Val1 = 0x" << std::setfill('0') << std::setw(4) <<
+                     std::right << std::uppercase << std::hex << int(val1) << " (Dec:" << std::dec << decStr1 << ") / "
+               << "Val2 = 0x" << std::setfill('0') << std::setw(4) <<
+                                      std::right << std::uppercase << std::hex << int(val2) << " (Dec:" << std::dec << decStr2 << ")";
+
+        logging::Info(outputMsg.str());
+    }
+}
+
+void DbgInterface::CompareTwoUInt16s(std::string varName, uint16_t val1, uint16_t val2) {
     if (val1 != val2) {
         std::ostringstream outputMsg;
 
@@ -518,6 +625,18 @@ DbgInterface::DbgInterface()
 
 DbgInterface::~DbgInterface()
 {
-    delete newDump;
-    delete levelData;
+    if (newDump != nullptr) {
+        delete newDump;
+        newDump = nullptr;
+    }
+
+    if (newDump2 != nullptr) {
+        delete newDump2;
+        newDump2 = nullptr;
+    }
+
+    if (levelData != nullptr) {
+        delete levelData;
+        levelData = nullptr;
+    }
 }

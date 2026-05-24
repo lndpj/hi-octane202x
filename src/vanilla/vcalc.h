@@ -240,6 +240,8 @@ public:
     //Careful: This function returns the angle in degress for a 360° unit circle
     //The original game uses inside a 256° (step) unit circle!
     irr::f32 angle_get_xy(irr::core::vector3df position_from, irr::core::vector3df position_to);
+
+    irr::f32 angle_get_difference(irr::f32 angle1, irr::f32 angle2);
 };
 
 #endif // VCALC_H

@@ -3,7 +3,7 @@
  the GitHub project https://github.com/movAX13h/HiOctaneTools to C++ by myself.
  This project also uses the GPL3 license which is attached to this project repo as well.
  
- Copyright (C) 2024-2025 Wolf Alexander       (I did just translation to C++, and extended with some new code)
+ Copyright (C) 2024-2026 Wolf Alexander       (I did just translation to C++, and extended with some new code)
  Copyright (C) 2016 movAX13h and srtuss  (authors of original source code)
 
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
@@ -35,18 +35,18 @@ MapEntry::MapEntry(int x, int z, int offset, std::vector<uint8_t> bytes, std::ve
     //Byte 1:  Cell Illumination value: This value controls how well illuminated a cell is
     //Byte 2:  Height
     //Byte 3:  Height
-    //Byte 4:  cid (cell id)
-    //Byte 5:  cid (cell id)
-    //Byte 6:  Point of Interest
-    //Byte 7:  Point of Interest
-    //Byte 8:  Reserved 1 (seems to be not used)
-    //Byte 9:  Reserved 1 (seems to be not used)
-    //Byte 10:  Texture Modification
-    //Byte 11:  Reserved 2 (seems to be not used)
+    //Byte 4:  cid (cell id) (Called "Block" in original game implementation)
+    //Byte 5:  cid (cell id) (Called "Block" in original game implementation)
+    //Byte 6:  Point of Interest (Called "Child" in original game implementation)
+    //Byte 7:  Point of Interest (Called "Child" in original game implementation)
+    //Byte 8:  Vector (is not used in the level file itself, but later during game runtime stores index to a "Vector")
+    //Byte 9:  Vector (is not used in the level file itself, but later during game runtime stores index to a "Vector")
+    //Byte 10:  Texture Modification (is called "Orientation" in the original game implementation)
+    //Byte 11:  Marker: (is not used in the level file itself, but later during game runtime stores index to a "Marker")
 
-    //Reserved 1 & Reserved 2: For both values I checked in every level of the original
-    //game. Is not a single time non zero. Was maybe reserved for
-    //a future expansion, and never used (maybe reserved).
+    //Vector & Marker: For both values I checked in every level of the original
+    //game. Is not a single time non zero. Note: 23.5.2026: Values are used during runtime
+    //of the game! For collision detection
 
     this->m_Height = (((float)(bytes.at(2))) / 256.0f) + (float)(bytes.at(3));
 
@@ -77,9 +77,9 @@ MapEntry::MapEntry(int x, int z, int offset, std::vector<uint8_t> bytes, std::ve
     //read cell illumination value
     mIllumination = ConvertByteArray_ToInt16(bytes, 0);
 
-    //read also unknown data
-    mReserved1 = ConvertByteArray_ToInt16(bytes, 8);
-    mReserved2 = bytes.at(11);
+    //read also data that is used during game runtime
+    mVector = ConvertByteArray_ToInt16(bytes, 8);
+    mMarker = bytes.at(11);
 }
 
 MapEntry::~MapEntry() {
@@ -139,14 +139,6 @@ void MapEntry::set_Z(int new_Z) {
 
 bool MapEntry::WriteChanges() {
     //convert height information to bytes
-    /*unsigned char div = (unsigned char)(this->m_Height / 255.0f);
-    float remainder = (this->m_Height - float(div));
-    unsigned char rem = (unsigned char)(remainder);
-
-    this->m_wBytes.at(2) = div;
-    this->m_wBytes.at(3) = rem;*/
-
-    //convert height information to bytes
     ConvertAndWriteFloatToByteArray(this->m_Height, this->m_wBytes, 2);
 
     //is this a column at this location
@@ -170,9 +162,15 @@ bool MapEntry::WriteChanges() {
     //write illumination value (how much light does a cell receive)
     ConvertAndWriteInt16ToByteArray(mIllumination, this->m_wBytes, 0);
 
-    //write also unknown data
-    ConvertAndWriteInt16ToByteArray(mReserved1, this->m_wBytes, 8);
-    this->m_wBytes.at(11) = (uint8_t)(mReserved2);
+    //Make sure to reset the value of the variables that are only
+    //used during gameplay, so that a level file is not damaged
+    //accidently when savint it
+    mVector = 0;
+    mMarker = 0;
+
+    //write also game runtime data
+    ConvertAndWriteInt16ToByteArray(mVector, this->m_wBytes, 8);
+    this->m_wBytes.at(11) = (uint8_t)(mMarker);
 
     return true;
 }

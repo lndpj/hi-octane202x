@@ -102,11 +102,11 @@ public:
     std::string GetAsString();
 
     float mFloatValue;
+    int16_t mRawValue;
 
 private:
     std::string mName;
     DataTools* mParent = nullptr;
-    int16_t mRawValue;
 };
 
 class FixedPointInt32_8R8Num {

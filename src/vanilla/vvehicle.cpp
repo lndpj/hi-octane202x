@@ -36,6 +36,7 @@
 #include "../game.h"
 #include "../vanilla/vcalc.h"
 #include "../draw/drawdebug.h"
+#include "../vanilla/vtrack.h"
 #include "debug/dbginterface.h"
 
 void VVehicle::Update(irr::f32 frameDeltaTime) {
@@ -53,13 +54,13 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
     }
 
     mUpdateVehicleTimeIntegrator += frameDeltaTime;
-    if (mUpdateVehicleTimeIntegrator >= 0.05) {
+    if (mUpdateVehicleTimeIntegrator >= 0.03) {
         mUpdateVehicleTimeIntegrator = 0.0f;
 
     irr::core::vector3df delta;
 
     //if (mRace->AdvModel) {
-   //   mRace->mVDbgInterface->Init(std::string("fullthrottle.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
+     //  mRace->mVDbgInterface->Init(std::string("fullthrottle.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
         // mRace->mVDbgInterface->Init(std::string("testfile.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
         //mRace->mVDbgInterface->Init(std::string("beforeangle.bin"), std::string("afterangle.bin"), std::string("extract/level0-1/level0-1-unpacked.dat"));
 
@@ -84,6 +85,7 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         vehicle_calculate_momentum(delta);
         vehicle_calculate_movement_delta(delta);
         vehicle_colide_map(delta);
+        vehicle_colide_vectors(delta);
         vehicle_move_altitude(delta);
         vehicle_move_roll(delta);
         vehicle_move_tilt(delta);
@@ -199,6 +201,8 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    FlightModel.Flag.HealthDeath = false;
    FlightModel.Flag.FuelDeath = false;
    FlightModel.Flag.Reposition = false;
+
+   FlightModel.FunctionFlag.Pad6 = false;
 
    FlightModel.FunctionFlag.Brake = true;
    FlightModel.FunctionFlag.Booster = true;
@@ -968,6 +972,105 @@ void VVehicle::vehicle_set_camera() {
     View.AngleXY = ThingData.Movement.AngleXY;
     View.AngleZY = ThingData.Movement.AngleZY;
     View.AngleXZ = ThingData.Movement.AngleXZ + 4.0f * Increment.AngleXY;
+}
+
+void VVehicle::vehicle_colide_vectors(irr::core::vector3df& delta) {
+    int16_t v5 = 5;
+    irr::core::vector3df position2 = ThingData.Position;
+    position2 += delta;
+
+    irr::f32 xy;
+    irr::f32 trackCollVecAngle;
+    irr::f32 angleDiff;
+    irr::f32 v11;
+    irr::f32 v13;
+    irr::f32 v14;
+    irr::f32 v15;
+    irr::f32 v16;
+    irr::f32 v19;
+    irr::f32 v20;
+    irr::f32 v21;
+    irr::f32 v24;
+    bool v8;
+    bool v18;
+
+    //Pad6 flag seems to be used for vehicle collision
+    //with vectors
+    FlightModel.FunctionFlag.Pad6 = false;
+    while ( mRace->mVTrack->track_vector_collide(ThingData.Position, position2)) {
+        if (!--v5) {
+            goto vehicle_colide_vectors_LABEL31;
+        }
+        FlightModel.FunctionFlag.Pad6 = true;
+        xy = mRace->mVCalc->angle_get_xy(ThingData.Position, position2);
+        if (mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 0.0f) {
+            v8 = (-mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        } else {
+            v8 = (mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        }
+
+        if (v8) {
+            trackCollVecAngle = mRace->mVTrack->TrackCollisionVectorAngle;
+        } else {
+            trackCollVecAngle = mRace->mVTrack->TrackCollisionVectorAngle + 180.0f;
+        }
+
+        v11 = trackCollVecAngle;
+        angleDiff = mRace->mVCalc->angle_get_difference(xy, trackCollVecAngle);
+        v13 = sqrt(delta.X * delta.X + delta.Y * delta.Y);
+        v14 = angleDiff * 65536.0f;
+        v15 = angleDiff / 65536.0f;
+
+        delta.X = 0.0f;
+        delta.Y = 0.0f;
+        delta.Z = 0.0f;
+
+        if ( fabs(v15) > 0.0054931640625f) {
+           v16 = fabs(v15);
+           v11 += 4.998779296875f * (v15 / v16);
+        }
+
+        mRace->mVCalc->move_displacement_set(delta, v11, 0.0f, v13);
+
+        if (mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 0.0f) {
+              v18 =
+                 (-mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        } else {
+            v18 =
+                 (mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        }
+
+        if (v18) {
+            v19 = mRace->mVTrack->TrackCollisionVectorAngle;
+        } else {
+            v19 = mRace->mVTrack->TrackCollisionVectorAngle + 180.0f;
+        }
+
+        v21 = mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, v19);
+
+        v20 = v21;
+        v21 = fabs(v21);
+
+        if ( v21 >= 0.999755859375f) {
+            v24 = v20 / 16.0f;
+            if (v20 < 0.0f) {
+                v24 = (v20 + 0.0823974609375f) / 16.0f;
+            }
+        } else {
+            v24 = 1.99951171875f;
+        }
+
+        ThingData.Movement.AngleXY += v24;
+        position2 = ThingData.Position;
+        position2 += delta;
+    }
+
+    if (v5)
+        return;
+
+vehicle_colide_vectors_LABEL31:
+    delta.X = 0.0f;
+    delta.Y = 0.0f;
 }
 
 void VVehicle::UpdateSceneNode() {

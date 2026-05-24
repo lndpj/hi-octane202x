@@ -20,6 +20,7 @@ class DataTools;
 class ParseThingList;
 class ParseThing;
 class ParseThingVehicle;
+class ParseVectors;
 
 class MemDump
 {
@@ -41,9 +42,14 @@ public:
 
     ParseThingList* ThingList = nullptr;
     //ParseThing* Thing = nullptr;
+    ParseVectors* Vectors = nullptr;
+
+    void ReadVectors(size_t dumpLevelStructStart);
 
     ParseThingVehicle* ThingVehicle = nullptr;
     std::vector<ParseThing*> mExistingThingsVec;
+
+
 };
 
 #endif // MEMDUMP_H
