@@ -284,6 +284,27 @@ add_executable(hi-octane202x
     src/vanilla/vcalc.cpp
     src/vanilla/vvehicle.h
     src/vanilla/vvehicle.cpp
+    src/vanilla/vtrack.h
+    src/vanilla/vtrack.cpp
+
+    src/vanilla/debug/dbginterface.h
+    src/vanilla/debug/dbginterface.cpp
+    src/vanilla/debug/memdump.h
+    src/vanilla/debug/memdump.cpp
+    src/vanilla/debug/datatools.h
+    src/vanilla/debug/datatools.cpp
+    src/vanilla/debug/binaryfile.h
+    src/vanilla/debug/binaryfile.cpp
+    src/vanilla/debug/structs/thingvehicle.h
+    src/vanilla/debug/structs/thingvehicle.cpp
+    src/vanilla/debug/structs/thinglist.h
+    src/vanilla/debug/structs/thinglist.cpp
+    src/vanilla/debug/structs/thing.h
+    src/vanilla/debug/structs/thing.cpp
+    src/vanilla/debug/structs/basicstructs.h
+    src/vanilla/debug/structs/basicstructs.cpp
+    src/vanilla/debug/structs/vvectors.h
+    src/vanilla/debug/structs/vvectors.cpp
 
     src/utils/boundingbox/coord_frame.h
     src/utils/boundingbox/basis.h

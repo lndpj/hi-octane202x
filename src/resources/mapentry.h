@@ -3,7 +3,7 @@
  the GitHub project https://github.com/movAX13h/HiOctaneTools to C++ by myself.
  This project also uses the GPL3 license which is attached to this project repo as well.
  
- Copyright (C) 2024-2025 Wolf Alexander       (I did just translation to C++, and extended with some new code)
+ Copyright (C) 2024-2026 Wolf Alexander       (I did just translation to C++, and extended with some new code)
  Copyright (C) 2016 movAX13h and srtuss  (authors of original source code)
 
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
@@ -56,11 +56,11 @@ public:
     //If a cell receives more light then normal we look at values around 6000.
     int16_t mIllumination;
 
-    //For both values I checked in every level of the original
-    //game. Is not a single time non zero. Was maybe reserved for
-    //a future expansion, and never used (maybe reserved).
-    int16_t mReserved1;
-    int8_t mReserved2;
+    //mVector & mMarker: For both values I checked in every level of the original
+    //game. Is not a single time non zero. Note: 23.5.2026: This two values are used during runtime
+    //of the game! For collision detection
+    int16_t mVector;
+    int8_t mMarker;
 
 protected:
     int m_X;

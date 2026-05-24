@@ -19,10 +19,14 @@
 //make sense in my opinion.
 
 //Important note: What makes this source code very difficult to handle is the fact, that my coordinate system in this existing project is
-//completely different to the one in the original game. The original uses X and Y axis for the tile map, and Z is the height. I have
-//X and Z for the tile map, and Y is the height. And to make things worse my Irrlicht vertices Y coordinates have a swapped sign (are negative)
-//currently. I will need to find a way to either adjust the source code below without introducing new bugs, or to change my project
-//to use the same coordinate system soon.
+//completely different to the one in the original game. The original uses X and Y axis for the tile map, and Z is the height.
+//For the levelfile and 2D map stuff I also use X any Y axis for the tile map most of the time.
+//My 3D world setup (for rendering) using Irrlicht has X and Z for the tile map, and Y is the height. And to make things worse my Irrlicht vertice X and Y coordinates
+//have a swapped sign (are negative) currently.
+
+//I have decided to also use the original games coordinate system in all vanilla calculations. At the interface between
+//original game calculations and Irrlicht 3D coordinate system I have then to convert from one coordinate system setup to the other.
+//Thats the drawback I will have.
 
 //I really want to thank aybe for giving me the opportunity to look much deeper into the original game inner workings as I was ever able before.
 //Without this support I would not have been able to hopefully advance the current project more true to the original.
@@ -31,6 +35,9 @@
 #include "../race.h"
 #include "../game.h"
 #include "../vanilla/vcalc.h"
+#include "../draw/drawdebug.h"
+#include "../vanilla/vtrack.h"
+#include "debug/dbginterface.h"
 
 void VVehicle::Update(irr::f32 frameDeltaTime) {
     //we want to increment mTimeSlice every 50ms
@@ -46,20 +53,75 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         }
     }
 
+    mUpdateVehicleTimeIntegrator += frameDeltaTime;
+    if (mUpdateVehicleTimeIntegrator >= 0.03) {
+        mUpdateVehicleTimeIntegrator = 0.0f;
+
     irr::core::vector3df delta;
 
-    vehicle_control_from_player();
-    vehicle_get_track_friction();
-    vehicle_calculate_angle();
-    vehicle_calculate_thrust(delta);
-    mRace->mVCalc->move_displacement_slope(ThingData.Position, Slope);
-    vehicle_calculate_momentum(delta);
-    vehicle_calculate_movement_delta(delta);
-    vehicle_colide_map(delta);
-    vehicle_move_altitude(delta);
-    vehicle_move_roll(delta);
-    vehicle_move_tilt(delta);
-    vehicle_move_mapwho(delta);
+    //if (mRace->AdvModel) {
+     //  mRace->mVDbgInterface->Init(std::string("fullthrottle.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
+        // mRace->mVDbgInterface->Init(std::string("testfile.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
+        //mRace->mVDbgInterface->Init(std::string("beforeangle.bin"), std::string("afterangle.bin"), std::string("extract/level0-1/level0-1-unpacked.dat"));
+
+
+        //mRace->mVDbgInterface->CompareVehicleStateBetweenMemDumps(mRace->mVDbgInterface->newDump, mRace->mVDbgInterface->newDump2);
+
+        //Playstation 1 emulator executes this vehicle update loop average every 1721634 CPU cycles
+        //CPU clocks at 33.8688 MHz, which means lets run this loop every ~50.83 ms
+
+        vehicle_control_from_player();
+
+        vehicle_get_track_friction();
+        vehicle_calculate_angle();
+
+        //mRace->mVDbgInterface->CompareVehicleStatePlayerWithMemDump(*this, mRace->mVDbgInterface->newDump2);
+
+       //  mRace->mVDbgInterface->SetVehicleStatePlayerFromMemDump(*this, mRace->mVDbgInterface->newDump);
+
+        vehicle_calculate_thrust(delta);
+        mRace->mVCalc->move_displacement_slope(ThingData.Position, Slope);
+
+        vehicle_calculate_momentum(delta);
+        vehicle_calculate_movement_delta(delta);
+        vehicle_colide_map(delta);
+        vehicle_colide_vectors(delta);
+        vehicle_move_altitude(delta);
+        vehicle_move_roll(delta);
+        vehicle_move_tilt(delta);
+        vehicle_move_mapwho(delta);
+        vehicle_set_camera();
+
+       // mRace->AdvModel = false;
+   // }
+
+        UpdateSceneNode();
+        UpdateCoordinates();
+
+        UpdateCamera();
+    }
+}
+
+void VVehicle::UpdateCoordinates() {
+    this->mCraftNode->updateAbsolutePosition();
+    irr::core::matrix4 trans = this->mCraftNode->getAbsoluteTransformation();
+
+    IrrWorldCraftFrontPnt = IrrLocalCraftFrontPnt;
+    trans.transformVect(IrrWorldCraftFrontPnt);
+
+    IrrWorldCraftBackPnt = IrrLocalCraftBackPnt;
+    trans.transformVect(IrrWorldCraftBackPnt);
+
+    IrrWorldCraftLeftPnt = IrrLocalCraftLeftPnt;
+    trans.transformVect(IrrWorldCraftLeftPnt);
+
+    IrrWorldCraftRightPnt = IrrLocalCraftRightPnt;
+    trans.transformVect(IrrWorldCraftRightPnt);
+
+    IrrWorldCraftOrigin = IrrLocalCraftOrigin;
+    trans.transformVect(IrrWorldCraftOrigin);
+
+    IrrWorldDirVecForward = (IrrWorldCraftFrontPnt - IrrWorldCraftBackPnt).normalize();
 }
 
 void VVehicle::SetupFlightModelConstants() {
@@ -76,7 +138,6 @@ void VVehicle::SetupFlightModelConstants() {
     mSideslipFriction = mRace->mVCalc->FixedPointToFloat8D8(7);
     mSideslipToThrust = mRace->mVCalc->FixedPointToFloat8D8(60);
     mBounce = mRace->mVCalc->FixedPointToFloat8D8(50);
-
     Stats.Behind = 100;
 
     mFriction = mRace->mVCalc->FixedPointToFloat8D8(10);
@@ -110,8 +171,45 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
 
    SetupFlightModelConstants();
 
-   //TODO important: Preset Sensor Zpos values as in the original game!
-   //See function initialiseVEHICLE_CAR
+   irr::core::vector3df vanPos = mRace->mVCalc->IrrlichtToVanillaCoord(NewPosition);
+   irr::f32 terrHeight = mRace->mVCalc->map_altitude_column_and_floor(vanPos);
+   vanPos.Z = terrHeight + 0.5f;
+
+   ThingData.Position = vanPos;
+   ThingData.Movement.AngleXZ = 0.0f;
+   Momentum.AngleXY = 0.0f;
+   Momentum.DeltaX = 0.0f;
+   Momentum.DeltaY = 0.0f;
+   mMaximumZpos = 3.0f / 256.0f;
+
+   FlightModel.FrontLeft.Zpos = ThingData.Position.Z;
+   FlightModel.FrontRight.Zpos = ThingData.Position.Z;
+   FlightModel.RearLeft.Zpos = ThingData.Position.Z;
+   FlightModel.RearRight.Zpos = ThingData.Position.Z;
+
+   FlightModel.Flag.Booster = false;
+   FlightModel.Flag.Brake = false;
+   FlightModel.Flag.Airbourn = false;
+   FlightModel.Flag.BarrelRoll = false;
+   FlightModel.Flag.AutoPilot = false;
+   FlightModel.Flag.AutoRefuel = false;
+   FlightModel.Flag.AutoRearm = false;
+   FlightModel.Flag.AutoRepair = false;
+   FlightModel.Flag.AutoStop = false;
+   FlightModel.Flag.AutoPilotSet = false;
+   FlightModel.Flag.AutoDrive = false;
+   FlightModel.Flag.HealthDeath = false;
+   FlightModel.Flag.FuelDeath = false;
+   FlightModel.Flag.Reposition = false;
+
+   FlightModel.FunctionFlag.Pad6 = false;
+
+   FlightModel.FunctionFlag.Brake = true;
+   FlightModel.FunctionFlag.Booster = true;
+   FlightModel.FunctionFlag.BarrelRoll = true;
+
+   Stats.Health = 10000;
+   Stats.Fuel = 10000;
 
    mCraftMesh = mRace->mGame->mSmgr->getMesh(irr::io::path("extract/models/car0-0.obj"));
    mCraftNode = mRace->mGame->mSmgr->addMeshSceneNode(mCraftMesh);
@@ -122,20 +220,23 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    mCraftNode->setRotation(((NewFrontAt-NewPosition).normalize()).getHorizontalAngle()+ irr::core::vector3df(0.0f, 180.0f, 0.0f));
    mCraftNode->setPosition(NewPosition);
 
-   ThingData.Position = NewPosition;
-
    mCraftNode->setDebugDataVisible(EDS_BBOX);
    //mCraftNode->setDebugDataVisible(EDS_OFF);
 
    mCraftNode->setScale(irr::core::vector3d<irr::f32>(1,1,1));
    mCraftNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
    mCraftNode->setMaterialFlag(irr::video::EMF_FOG_ENABLE, true);
-   mCraftNode->setVisible(true);
+   //mCraftNode->setVisible(true);
+
+   mOutsideCam = mRace->mGame->mSmgr->addCameraSceneNode(0, irr::core::vector3df(0,0,0), irr::core::vector3df(0,0,100), -1, false);
+
+   CalcCraftLocalFeatureCoordinates(NewPosition, NewFrontAt);
 }
 
 void VVehicle::vehicle_get_track_friction() {
     if (FlightModel.Flag.Airbourn) {
         //if we are currently air bourne there is no friction
+        //logging::Info("AirBourn");
         mFriction = 0.0f;
         return;
     }
@@ -166,6 +267,10 @@ void VVehicle::vehicle_get_track_friction() {
         }
 
         mFriction = newFriction;
+
+        //std::ostringstream outputMsg;
+        //outputMsg << "New Friction value = " << mFriction;
+        //logging::Info(outputMsg.str());
     }
 }
 
@@ -211,7 +316,30 @@ LABEL_18_vehicle_calculate_angle:
 }
 
 void VVehicle::vehicle_calculate_thrust(irr::core::vector3df& delta) {
-    //TODO: add autodrive stuff at the top of this routine
+    irr::f32 v6;
+    irr::f32 v13;
+    irr::f32 v14;
+
+    if ((Stats.Health > 0) || (FlightModel.Flag.AutoDrive)) {
+       v6 = MovementInput.SpeedActual;
+
+       if (fabs(v6) > 0.00390625f) {
+           Increment.SpeedActual += v6;
+
+           if (MovementInput.SpeedActual < 0.0f) {
+               //set the brake flag
+               FlightModel.Flag.Brake = true;
+           } else {
+               //clear the brake flag
+               FlightModel.Flag.Brake = false;
+           }
+       }
+    } else {
+        //Health is negative (so human player must not steer,
+        //and Autodrive is currently not set)
+        //so force zero speed
+        Increment.SpeedActual = 0.0f;
+    }
 
     if (Increment.SpeedActual >= 0.0f) {
         //we are not Deaccelerating right now
@@ -223,7 +351,20 @@ void VVehicle::vehicle_calculate_thrust(irr::core::vector3df& delta) {
         Increment.SpeedActual = 0.0f;
     }
 
-    //TODO: add stuff about out of fuel at the end of this function
+    //Are we out of fuel?
+    if (Stats.Fuel <= 0) {
+      v13 = Increment.SpeedActual;
+
+      if (v13 >= 0.0f) {
+          v14 = IncrementLimit.SpeedActual * 0.5f;
+          if (v14 < v13) {
+              Increment.SpeedActual = v14;
+          }
+      } else {
+          Increment.SpeedActual = 0.0f;
+      }
+    }
+
     ThingData.Movement.SpeedActual = (mThrustEffectiveness * Increment.SpeedActual) / 0.390625f;
     mRace->mVCalc->move_displacement_set(delta, ThingData.Movement.AngleXY, 0.0f, (ThingData.Movement.SpeedActual / 16.0f));
     ThingData.Movement.SpeedActual = Increment.SpeedActual;
@@ -231,6 +372,7 @@ void VVehicle::vehicle_calculate_thrust(irr::core::vector3df& delta) {
 
 void VVehicle::vehicle_calculate_momentum(irr::core::vector3df& delta) {
     irr::core::vector3df v44;
+    irr::core::vector3df v50;
 
     delta.X += (Slope.X / 64.0f);
     delta.Y += (Slope.Y / 64.0f);
@@ -266,17 +408,78 @@ void VVehicle::vehicle_calculate_momentum(irr::core::vector3df& delta) {
 
         //** Add the missing booster stuff later **/
 
-        if (FlightModel.Flag.Brake) {
-            if (FlightModel.FunctionFlag.Brake) {
-                Momentum.DeltaX *= (0.9765625f - FlightModel.BrakePower);
-                Momentum.DeltaY *= (0.9765625f - FlightModel.BrakePower);
-            }
+        //Keep double for DeltaX and DeltaY!
+        double DeltaX = (double)(Momentum.DeltaX);
+        double DeltaY = (double)(Momentum.DeltaY);
 
-        }
+        irr::f32 speedValConst = 4.0f;
+
+        int8_t v55 =
+                mRace->mVCalc->move_displacement_set(v50, ThingData.Movement.AngleXY, 0.0f, speedValConst);
+
+        //with the code below the disassembler had some issues, and the Pseudo-C Code
+        //was unusable; Therefore this is based on a longer assembly study session, and stepping
+        //with the Playstation 1 Emulator debugger, Pretty weird code
+        double floatV50_X = (double)(v50.X);
+        double floatV50_Y = (double)(v50.Y);
+
+        floatV50_X = floatV50_X / speedValConst;
+        floatV50_Y = floatV50_Y / speedValConst;
+
+        double multXRes = floatV50_X * DeltaX * 256.0;
+        double multYRes = floatV50_Y * DeltaY * 256.0;
+
+        double sum = multXRes + multYRes;
+
+        double multXResSum = floatV50_X * sum;
+        double multYResSum = floatV50_Y * sum;
+
+        int32_t multXResSumInt = (int32_t)(multXResSum);
+        int32_t multYResSumInt = (int32_t)(multYResSum);
+
+        v44.X = mRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(multXResSumInt));
+        v44.Y = mRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(multYResSumInt));
+        v44.Z = 0.0f;
+
+        double v45_var70 = DeltaX - (double)(v44.X);
+        double v45_var70_plus2 = DeltaY - (double)(v44.Y);
+        double v46_var6C = (double)(v44.Z);
+
+        v44.X *= (0.9765625f - mFriction);
+        v44.Y *= (0.9765625f - mFriction);
+
+        Momentum.DeltaX = v44.X;
+        Momentum.DeltaY = v44.Y;
+
+        double v47 = v45_var70_plus2;
+        double v48 = v46_var6C;
+
+        v45_var70 *= (0.9765625 - (double)(mSideslipFriction) - (double)(mFriction));
+        v45_var70_plus2 *= (0.9765625 - (double)(mSideslipFriction) - (double)(mFriction));
+
+        Momentum.DeltaX += (irr::f32)(v45_var70);
+        Momentum.DeltaY += (irr::f32)(v45_var70_plus2);
+
+        double v35 = (v47 - v45_var70_plus2) * (v47 - v45_var70_plus2);
+        v45_var70_plus2 = v47 - v45_var70_plus2;
+        v45_var70 = v47 - v45_var70_plus2;
+        v46_var6C = v48 - v46_var6C;
+
+        double v36 = sqrt(v35 + v45_var70 * v45_var70);
+        mRace->mVCalc->move_displacement_set(v44, ThingData.Movement.AngleXY, 0.0f, (irr::f32)(v36));
+
+        Momentum.DeltaX += v44.X * (mSideslipFriction / 100.0f);
+        Momentum.DeltaY += v44.Y * (mSideslipFriction / 100.0f);
+    }
+
+    if (FlightModel.Flag.Brake) {
+       if (FlightModel.FunctionFlag.Brake) {
+            Momentum.DeltaX *= (0.9765625f - FlightModel.BrakePower);
+            Momentum.DeltaY *= (0.9765625f - FlightModel.BrakePower);
+       }
     }
 }
 
-//Note 01.05.2026: Function below is completely untested!
 void VVehicle::vehicle_calculate_movement_delta(irr::core::vector3df& delta) {
     irr::core::vector3df position1(0.0f, 0.0f, 0.0f);
     irr::f32 v5;
@@ -308,8 +511,6 @@ vehicle_calculate_movement_delta_LABEL_4:
     }
 vehicle_calculate_movement_delta_LABEL_5:
 
-    //TODO: I am pretty sure I need to swap coordinates below, or not?
-
     irr::f32 Ypos = delta.Y;
     v7 = -0.9765625f;
 
@@ -327,12 +528,8 @@ vehicle_calculate_movement_delta_LABEL_5:
     Displacement.Y = Momentum.DeltaY / 4.0f;
 }
 
-//Note 01.05.2026: Function below is completely untested!
 void VVehicle::vehicle_move_altitude(irr::core::vector3df& delta) {
      irr::core::vector3df position;
-
-     //TODO Important: Do I need to swap the coordinates? Y is height for me, Z in the
-     //original game!!! Most likely this code is still wrong
 
      position.X = ThingData.Position.X + delta.X;
      position.Y = ThingData.Position.Y + delta.Y;
@@ -361,7 +558,6 @@ void VVehicle::vehicle_move_altitude(irr::core::vector3df& delta) {
      delta.Z = position.Z - ThingData.Position.Z;
 }
 
-//Note 01.05.2026: Function below is completely untested!
 void VVehicle::vehicle_move_tilt(irr::core::vector3df& delta) {
     irr::core::vector3df position;
     irr::f32 v11;
@@ -427,7 +623,6 @@ vehicle_move_tilt_LABEL_10:
     }
 }
 
-//Note 01.05.2026: Function below is completely untested!
 void VVehicle::vehicle_move_roll(irr::core::vector3df& delta) {
     irr::f32 v10;
     irr::f32 v8;
@@ -435,6 +630,8 @@ void VVehicle::vehicle_move_roll(irr::core::vector3df& delta) {
     irr::f32 craftHeightDiff;
     irr::f32 absCraftHeightDiff;
     bool v9;
+    int32_t intPart;
+    irr::f32 fracPart;
 
     if (FlightModel.Flag.Airbourn) {
         //yes, we are in the air right now
@@ -447,9 +644,12 @@ void VVehicle::vehicle_move_roll(irr::core::vector3df& delta) {
 
     absCraftHeightDiff = fabs(craftHeightDiff);
 
+    intPart = (int32_t)(craftHeightDiff);
+    fracPart = craftHeightDiff - (irr::f32)(intPart);
+
     if (absCraftHeightDiff < (2.0f * FlightModel.SizeSideways)) {
         v10 = ThingData.Movement.AngleXZ +
-                (mRace->mVCalc->arctanPlusMultiply32(craftHeightDiff, -2.0f * FlightModel.SizeSideways)
+                (mRace->mVCalc->arctanPlusMultiply32(fracPart, -2.0f * FlightModel.SizeSideways)
                  -ThingData.Movement.AngleXZ) / 8.0f;
 
         ThingData.Movement.AngleXZ = v10;
@@ -541,17 +741,19 @@ void VVehicle::vehicle_sensor_point_projection(irr::core::vector3df& delta) {
     irr::f32 Sideways = FlightModel.SizeSideways;
 
     position.X = ThingData.Position.X;
+    position.Y = ThingData.Position.Y;
     position.Z = ThingData.Position.Z;
     new_position.X = ThingData.Position.X;
+    new_position.Y = ThingData.Position.Y;
     new_position.Z = ThingData.Position.Z;
 
     /* Sensor Front Right */
-
     mRace->mVCalc->move_xyz(position, ThingData.Movement.AngleXY + 90.0f, ThingData.Movement.AngleXZ, Sideways);
     mRace->mVCalc->move_xyz(position, ThingData.Movement.AngleXY, ThingData.Movement.AngleZY, Forward);
     new_position = position + delta;
 
     FlightModel.FrontRight.Position.X = position.X;
+    FlightModel.FrontRight.Position.Y = position.Y;
     FlightModel.FrontRight.Position.Z = position.Z;
     FlightModel.FrontRight.CollideFlags = mRace->mVCalc->map_colide_direction_xy(position, new_position);
     mRace->mVCalc->move_displacement_slope(new_position, displacement);
@@ -566,6 +768,7 @@ void VVehicle::vehicle_sensor_point_projection(irr::core::vector3df& delta) {
     new_position = position + delta;
 
     FlightModel.FrontLeft.Position.X = position.X;
+    FlightModel.FrontLeft.Position.Y = position.Y;
     FlightModel.FrontLeft.Position.Z = position.Z;
     FlightModel.FrontLeft.CollideFlags = mRace->mVCalc->map_colide_direction_xy(position, new_position);
     mRace->mVCalc->move_displacement_slope(new_position, displacement);
@@ -580,6 +783,7 @@ void VVehicle::vehicle_sensor_point_projection(irr::core::vector3df& delta) {
     new_position = position + delta;
 
     FlightModel.RearLeft.Position.X = position.X;
+    FlightModel.RearLeft.Position.Y = position.Y;
     FlightModel.RearLeft.Position.Z = position.Z;
     FlightModel.RearLeft.CollideFlags = mRace->mVCalc->map_colide_direction_xy(position, new_position);
     mRace->mVCalc->move_displacement_slope(new_position, displacement);
@@ -593,6 +797,7 @@ void VVehicle::vehicle_sensor_point_projection(irr::core::vector3df& delta) {
     new_position = position + delta;
 
     FlightModel.RearRight.Position.X = position.X;
+    FlightModel.RearRight.Position.Y = position.Y;
     FlightModel.RearRight.Position.Z = position.Z;
     FlightModel.RearRight.CollideFlags = mRace->mVCalc->map_colide_direction_xy(position, new_position);
     mRace->mVCalc->move_displacement_slope(new_position, displacement);
@@ -666,7 +871,7 @@ void VVehicle::vehicle_move_mapwho(irr::core::vector3df& delta) {
     irr::f32 v8;
     irr::f32 v10;
 
-    //irr::core::vector3df position;
+    irr::core::vector3df position;
 
     Xpos = delta.X;
     v6 = -0.8984375f;
@@ -686,23 +891,344 @@ void VVehicle::vehicle_move_mapwho(irr::core::vector3df& delta) {
         delta.Z = v10;
     }
 
-    //position.X = ThingData.Position.X + delta.X;
-    //position.Y = ThingData.Position.Y + delta.Y;
-    //position.Z = ThingData.Position.Z + delta.Z;
+    position.X = ThingData.Position.X + delta.X;
+    position.Y = ThingData.Position.Y + delta.Y;
+    position.Z = ThingData.Position.Z + delta.Z;
     //mapwho_move(thing, &position);
+
+    //Remove line below later again, happens in mapwho_move above if implemented correctly
+    //later
+    ThingData.Position = position;
 }
 
 void VVehicle::vehicle_control_from_player() {
+    irr::f32 v13;
+    irr::f32 v14;
+
     MovementInput.AngleXY = 0.0f;
     MovementInput.AngleXZ = 0.0f;
     MovementInput.AngleZY = 0.0f;
     MovementInput.SpeedActual = 0.0f;
 
     if (KeyPressedAccel) {
-        Increment.SpeedActual = IncrementAdd.SpeedActual;
+         MovementInput.SpeedActual = IncrementAdd.SpeedActual;
     } else if (KeyPressedDeaccel) {
-        Increment.SpeedActual = -IncrementAdd.SpeedActual;
+         MovementInput.SpeedActual = -IncrementAdd.SpeedActual;
     }
+
+    if (KeyPressedTurnRight || KeyPressedTurnLeft) {
+        v13 = IncrementAdd.AngleXY;
+        if (KeyPressedTurnRight) {
+            if (fabs(MovementInput.AngleXY) > 0.0054931640625f) {
+                MovementInput.AngleXY = ((v13 + (IncrementAdd.AngleXY / 32768.0f)) * 0.5f) +
+                        ((MovementInput.AngleXY + (MovementInput.AngleXY / 32768.0f)) * 0.5f);
+                goto vehicle_control_from_player_LABEL_28;
+            }
+            v14 = v13 + (IncrementAdd.AngleXY / 32768.0f);
+            goto vehicle_control_from_player_LABEL_25;
+        }
+
+        if (KeyPressedTurnLeft) {
+            //Note: I believe the original dissassembly seems to show a different
+            //condition for the if below, but with this one it does not seem to work
+            //When I modify the if like below the left craft turning works, but I am
+            //not sure if this change could cause other issues or bugs
+            //if something does not seems to be right the if in the line below
+            if (fabs(MovementInput.AngleXY) > 0.0054931640625f) {
+                v14 = (v13 > 0.0f) - v13;
+vehicle_control_from_player_LABEL_25:
+                MovementInput.AngleXY = v14 * 0.5f;
+                goto vehicle_control_from_player_LABEL_28;
+            }
+            MovementInput.AngleXY = -2.0 * v13 -
+                    ((MovementInput.AngleXY + (MovementInput.AngleXY / 32768.0f)) * 0.5f);
+        } else {
+            //in case neither the left or right turn
+            //key was pressed
+            MovementInput.AngleXY = 0.0f;
+        }
+    }
+vehicle_control_from_player_LABEL_28:
+    //next line is stuff useless, just needed after label so that I do
+    //not get a warning; remove next line when code below is added
+    KeyPressedTurnLeft = KeyPressedTurnLeft;
+
+    //add missing code below later; there is more for weapons trigger
+    //and something regarding friction
+}
+
+void VVehicle::UpdateCamera() {
+    irr::core::vector3df newCamPos = IrrWorldCraftOrigin - IrrWorldDirVecForward * 2.5f;
+    newCamPos.Y += 0.4f;
+
+    mOutsideCam->setPosition(newCamPos);
+    mOutsideCam->setTarget(IrrWorldCraftOrigin);
+}
+
+void VVehicle::vehicle_set_camera() {
+    //the View is the position and orientation of the
+    //player craft model
+    View.Position = ThingData.Position;
+    View.AngleXY = ThingData.Movement.AngleXY;
+    View.AngleZY = ThingData.Movement.AngleZY;
+    View.AngleXZ = ThingData.Movement.AngleXZ + 4.0f * Increment.AngleXY;
+}
+
+void VVehicle::vehicle_colide_vectors(irr::core::vector3df& delta) {
+    int16_t v5 = 5;
+    irr::core::vector3df position2 = ThingData.Position;
+    position2 += delta;
+
+    irr::f32 xy;
+    irr::f32 trackCollVecAngle;
+    irr::f32 angleDiff;
+    irr::f32 v11;
+    irr::f32 v13;
+    irr::f32 v14;
+    irr::f32 v15;
+    irr::f32 v16;
+    irr::f32 v19;
+    irr::f32 v20;
+    irr::f32 v21;
+    irr::f32 v24;
+    bool v8;
+    bool v18;
+
+    //Pad6 flag seems to be used for vehicle collision
+    //with vectors
+    FlightModel.FunctionFlag.Pad6 = false;
+    while ( mRace->mVTrack->track_vector_collide(ThingData.Position, position2)) {
+        if (!--v5) {
+            goto vehicle_colide_vectors_LABEL31;
+        }
+        FlightModel.FunctionFlag.Pad6 = true;
+        xy = mRace->mVCalc->angle_get_xy(ThingData.Position, position2);
+        if (mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 0.0f) {
+            v8 = (-mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        } else {
+            v8 = (mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        }
+
+        if (v8) {
+            trackCollVecAngle = mRace->mVTrack->TrackCollisionVectorAngle;
+        } else {
+            trackCollVecAngle = mRace->mVTrack->TrackCollisionVectorAngle + 180.0f;
+        }
+
+        v11 = trackCollVecAngle;
+        angleDiff = mRace->mVCalc->angle_get_difference(xy, trackCollVecAngle);
+        v13 = sqrt(delta.X * delta.X + delta.Y * delta.Y);
+        v14 = angleDiff * 65536.0f;
+        v15 = angleDiff / 65536.0f;
+
+        delta.X = 0.0f;
+        delta.Y = 0.0f;
+        delta.Z = 0.0f;
+
+        if ( fabs(v15) > 0.0054931640625f) {
+           v16 = fabs(v15);
+           v11 += 4.998779296875f * (v15 / v16);
+        }
+
+        mRace->mVCalc->move_displacement_set(delta, v11, 0.0f, v13);
+
+        if (mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 0.0f) {
+              v18 =
+                 (-mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        } else {
+            v18 =
+                 (mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        }
+
+        if (v18) {
+            v19 = mRace->mVTrack->TrackCollisionVectorAngle;
+        } else {
+            v19 = mRace->mVTrack->TrackCollisionVectorAngle + 180.0f;
+        }
+
+        v21 = mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, v19);
+
+        v20 = v21;
+        v21 = fabs(v21);
+
+        if ( v21 >= 0.999755859375f) {
+            v24 = v20 / 16.0f;
+            if (v20 < 0.0f) {
+                v24 = (v20 + 0.0823974609375f) / 16.0f;
+            }
+        } else {
+            v24 = 1.99951171875f;
+        }
+
+        ThingData.Movement.AngleXY += v24;
+        position2 = ThingData.Position;
+        position2 += delta;
+    }
+
+    if (v5)
+        return;
+
+vehicle_colide_vectors_LABEL31:
+    delta.X = 0.0f;
+    delta.Y = 0.0f;
+}
+
+void VVehicle::UpdateSceneNode() {
+    if (this->mCraftNode == nullptr) {
+        return;
+    }
+
+    irr::core::matrix4 n;
+    n.setRotationDegrees(irr::core::vector3df(0.0f, 0.0f, 0.0f));
+    mCraftNode->setRotation(n.getRotationDegrees());
+
+    //take care about the model 3D orientation
+    ModelYaw(mCraftNode, View.AngleXY);
+    ModelPitch(mCraftNode, -View.AngleZY);
+    ModelRoll(mCraftNode, View.AngleXZ);
+
+    //finally move model to new 3D Position
+    irr::core::vector3df newPos = mRace->mVCalc->VanillaToIrrlichtCoord(View.Position);
+    mCraftNode->setPosition(newPos);
+    //mCraftNode->setVisible(false);
+}
+
+void VVehicle::DrawDebug() {
+    //dbgDraw FrontLeft sensor
+    irr::core::vector3df irrSensFrontLeft =
+            mRace->mVCalc->VanillaToIrrlichtCoord(FlightModel.FrontLeft.Position);
+
+    irr::core::vector3df irrSensFrontRight =
+            mRace->mVCalc->VanillaToIrrlichtCoord(FlightModel.FrontRight.Position);
+
+    irr::core::vector3df irrSensRearLeft =
+            mRace->mVCalc->VanillaToIrrlichtCoord(FlightModel.RearLeft.Position);
+
+    irr::core::vector3df irrSensRearRight =
+            mRace->mVCalc->VanillaToIrrlichtCoord(FlightModel.RearRight.Position);
+
+    irr::core::vector3df irrCraftPos =
+            mRace->mVCalc->VanillaToIrrlichtCoord(ThingData.Position);
+
+    mRace->mGame->mDrawDebug->Draw3DLine(*mRace->mGame->mDrawDebug->origin,
+                                         irrCraftPos, mRace->mGame->mDrawDebug->cyan);
+
+    mRace->mGame->mDrawDebug->Draw3DLine(*mRace->mGame->mDrawDebug->origin,
+                                         irrSensFrontLeft, mRace->mGame->mDrawDebug->red);
+
+    mRace->mGame->mDrawDebug->Draw3DLine(*mRace->mGame->mDrawDebug->origin,
+                                         irrSensFrontRight, mRace->mGame->mDrawDebug->orange);
+
+    mRace->mGame->mDrawDebug->Draw3DLine(*mRace->mGame->mDrawDebug->origin,
+                                         irrSensRearLeft, mRace->mGame->mDrawDebug->blue);
+
+    mRace->mGame->mDrawDebug->Draw3DLine(*mRace->mGame->mDrawDebug->origin,
+                                         irrSensRearRight, mRace->mGame->mDrawDebug->brown);
+}
+
+//--- rotate node relative to its current rotation -used in turn,pitch,roll ---
+void VVehicle::ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot)
+{
+    irr::core::matrix4 m;
+    m.setRotationDegrees(node->getRotation());
+    irr::core::matrix4 n;
+    n.setRotationDegrees(rot);
+    m *= n;
+    node->setRotation(m.getRotationDegrees());
+    node->updateAbsolutePosition();
+}
+
+//--- turn ship left or right ---
+void VVehicle::ModelYaw(irr::scene::ISceneNode *node, irr::f32 rot)
+{
+    ModelRotate(node, irr::core::vector3df(0.0f, rot, 0.0f) );
+}
+
+//--- pitch ship up or down ---
+void VVehicle::ModelPitch(irr::scene::ISceneNode *node, irr::f32 rot)
+{
+    ModelRotate(node, irr::core::vector3df(rot, 0.0f, 0.0f) );
+}
+
+//--- roll ship left or right ---
+void VVehicle::ModelRoll(irr::scene::ISceneNode *node, irr::f32 rot)
+{
+    ModelRotate(node, irr::core::vector3df(0.0f, 0.0f, rot) );
+}
+
+//NewPosition = New position of player craft center of gravity (world coordinates)
+//NewFrontAt = defines where player craft front is located at (world coordinates)
+void VVehicle::CalcCraftLocalFeatureCoordinates(irr::core::vector3d<irr::f32> NewPosition, irr::core::vector3d<irr::f32> NewFrontAt) {
+
+    //simply set the craft original coodinates
+    IrrLocalCraftOrigin.set(0.0f, 0.0f, 0.0f);
+
+    irr::core::vector3df pos_in_worldspace_frontPos(NewFrontAt);
+    this->mCraftNode->updateAbsolutePosition();
+    irr::core::matrix4 matr = this->mCraftNode->getAbsoluteTransformation();
+    matr.makeInverse();
+
+    matr.transformVect(pos_in_worldspace_frontPos);
+
+    //calculates new local coordinate for front of craft
+    IrrLocalCraftFrontPnt = pos_in_worldspace_frontPos;
+
+    irr::core::vector3df WCDirVecFrontToCOG = (NewPosition - NewFrontAt);
+    irr::core::vector3df WCDirVecCOGtoBack = NewPosition + WCDirVecFrontToCOG;
+
+    matr.transformVect(WCDirVecCOGtoBack);
+    IrrLocalCraftBackPnt = WCDirVecCOGtoBack;
+
+    irr::core::vector3d<irr::f32> VectorUp(0.0f, 1.0f, 0.0f);
+    WCDirVecFrontToCOG.normalize();
+    irr::core::vector3df sideDirToLeft = WCDirVecFrontToCOG.crossProduct(VectorUp);
+
+    //define a local craft coordinate that is independent of the craft model size,
+    //so that for physics control the behavior of the craft does not depend on the model
+    //otherwise models like the berserker are much more difficult to control
+  //  LocalCraftForceCntrlPnt = LocalCraftOrigin - WCDirVecFrontToCOG * irr::core::vector3df(0.5f, 0.5f, 0.5f);
+
+    sideDirToLeft.normalize();
+    irr::core::vector3df WCDirVecCOGtoLeft = NewPosition - sideDirToLeft * WCDirVecFrontToCOG.getLength();
+
+    matr.transformVect(WCDirVecCOGtoLeft);
+    IrrLocalCraftLeftPnt = WCDirVecCOGtoLeft;
+
+    irr::core::vector3df WCDirVecCOGtoRight = NewPosition + sideDirToLeft * WCDirVecFrontToCOG.getLength();
+    matr.transformVect(WCDirVecCOGtoRight);
+    IrrLocalCraftRightPnt = WCDirVecCOGtoRight;
+
+    //LocalTopLookingCamPosPnt = WCDirVecCOGtoBack + irr::core::vector3df(0.0f, 1.2f, 0.5f);     //attempt since 04.09.2024
+    //LocalTopLookingCamTargetPnt = WCDirVecFrontToCOG + irr::core::vector3df(0.0f, 1.1f, 0.0f); //attempt since 04.09.2024
+
+    //LocalSideLookingCamPosPnt = WCDirVecCOGtoRight + irr::core::vector3df(-1.5f, 0.4f, 0.0f);
+    //LocalSideLookingCamTargetPnt = irr::core::vector3df(0.0f, 0.0f, 0.0f);
+
+    //Local1stPersonCamPosPnt = LocalCraftOrigin + irr::core::vector3df(0.0f, 0.2f, 0.4f);
+    //Local1stPersonCamTargetPnt = Local1stPersonCamPosPnt + irr::core::vector3df(0.0f, 0.0f, -0.2f);
+
+    //LocalCraftAboveCOGStabilizationPoint = irr::core::vector3df(0.0f, 1.0f, 0.0f);
+
+    //define where from the craft the smoke emitts when the player
+    //health is very low, let it emit from the backside of the player model
+   /* irr::core::vector3df hlpVec = Player_node->getTransformedBoundingBox().getExtent();
+
+    LocalCraftSmokePnt.Z = hlpVec.Z * 0.5f;
+    LocalCraftSmokePnt.X = 0.0f;
+    LocalCraftSmokePnt.Y = hlpVec.Y * 0.5f;
+
+    //define where from the craft dust clouds are emitted, when hovering outside of the race
+    //track
+    LocalCraftDustPnt.X = 0.0f;
+    LocalCraftDustPnt.Y = -hlpVec.Y * 0.3f;
+    LocalCraftDustPnt.Z = 0.0f;*/
+
+   /* CreateHMapCollisionPointData();
+
+    LocalCraftFrontPnt = mHMapCollPntData.front->localPnt1;
+    LocalCraftBackPnt = mHMapCollPntData.back->localPnt1;
+    LocalCraftLeftPnt = mHMapCollPntData.left->localPnt1;
+    LocalCraftRightPnt = mHMapCollPntData.right->localPnt1;*/
 }
 
 VVehicle::~VVehicle() {

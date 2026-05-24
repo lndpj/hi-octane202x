@@ -31,37 +31,65 @@
 //I really want to thank aybe for giving me the opportunity to look much deeper into the original game inner workings as I was ever able before.
 //Without this support I would not have been able to hopefully advance the current project more true to the original.
 
-#ifndef VBASE_H
-#define VBASE_H
+#ifndef VTRACK_H
+#define VTRACK_H
 
 #include "irrlicht.h"
+#include "vbase.h"
 #include <cstdint>
+#include <vector>
 
 /************************
  * Forward declarations *
  ************************/
 
-struct MovementStruct {
-    irr::f32 AngleXY = 0.0f;
-    irr::f32 AngleZY = 0.0f;
-    irr::f32 AngleXZ = 0.0f;
-    irr::f32 SpeedActual = 0.0f;
+class Race;
+class MapEntry;
+
+//for performance reasons keep
+//data inside this struct in fixed
+//point arithmetic
+//Only exception is the angle
+struct TrackColVectStruct {
+    int32_t pos1X;
+    int32_t pos1Y;
+    int32_t pos1Z;
+    int32_t pos2X;
+    int32_t pos2Y;
+    int32_t pos2Z;
+    irr::f32 Angle;
 };
 
-struct MomentumStruct {
-    irr::f32 DeltaX = 0.0f;
-    irr::f32 DeltaY = 0.0f;
-    irr::f32 AngleXY = 0.0f;
+struct TrackColVectListStruct {
+    int16_t Vect;
+    int16_t NextColList;
 };
 
-struct ThingDataStruct {
-    irr::core::vector3df Position;
-    MovementStruct Movement;
-    irr::core::vector3df Displacement;
+class VTrack {
 
-    bool Stationary = false;
-    int16_t Life = 1000;
-    uint8_t mTimeSlice = 0;
+private:
+    Race* mParentRace = nullptr;
+
+    void add_collision_to_single_mapwho(irr::f32 x, irr::f32 y);
+    uint8_t do_move_colide(irr::f32 x1Float, irr::f32 y1Float, irr::f32 x2Float, irr::f32 y2Float, MapEntry* me);
+
+public:
+    VTrack(Race* parentRace);
+    ~VTrack();
+
+    //Move to private after debugging is done
+    irr::f32 TrackCollisionVectorAngle;
+    int16_t NextColVect = 1;
+    int16_t NextVectsList = 1;
+
+    TrackColVectStruct ColVects[250];
+    TrackColVectListStruct ColVectsList[10000];
+
+    int32_t TrackCollisionVectorX;
+    int32_t TrackCollisionVectorY;
+
+    void insert_vect(irr::core::vector3df position1, irr::core::vector3df position2);
+    uint16_t track_vector_collide(irr::core::vector3df position1, irr::core::vector3df position2);
 };
 
-#endif // VBASE_H
+#endif // VTRACK_H

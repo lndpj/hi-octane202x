@@ -1515,7 +1515,7 @@ void LevelFile::DebugWriteCellInfoToCsvFile(const char* debugOutPutFileName) {
    MapEntry* entry;
 
    //write a header
-   fprintf(debugOutputFile, "Cell X;Cell Y;Height;TexId;TexMod;TexModLowNibble;POI;Illumination;Reserved1;Reserved2\n");
+   fprintf(debugOutputFile, "Cell X;Cell Y;Height;TexId;TexMod;TexModLowNibble;POI;Illumination;Vector;Marker\n");
    for (int x = 0; x < LEVELFILE_WIDTH; x++) {
        for (int y = 0; y < LEVELFILE_HEIGHT; y++) {
            entry = pMap[x][y];
@@ -1525,7 +1525,7 @@ void LevelFile::DebugWriteCellInfoToCsvFile(const char* debugOutPutFileName) {
                fprintf(debugOutputFile, "%d;%d;%lf;%d;%d;%u;%d;%d;%d;%d\n",
                     x, y, entry->m_Height, entry->m_TextureId,
                     entry->GetTextureModification(), entry->GetTextureModificationLowerNibble(),
-                     entry->mPointOfInterest, entry->mIllumination, entry->mReserved1, entry->mReserved2);
+                     entry->mPointOfInterest, entry->mIllumination, entry->mVector, entry->mMarker);
             }
       }
    }

@@ -19,10 +19,14 @@
 //make sense in my opinion.
 
 //Important note: What makes this source code very difficult to handle is the fact, that my coordinate system in this existing project is
-//completely different to the one in the original game. The original uses X and Y axis for the tile map, and Z is the height. I have
-//X and Z for the tile map, and Y is the height. And to make things worse my Irrlicht vertices Y coordinates have a swapped sign (are negative)
-//currently. I will need to find a way to either adjust the source code below without introducing new bugs, or to change my project
-//to use the same coordinate system soon.
+//completely different to the one in the original game. The original uses X and Y axis for the tile map, and Z is the height.
+//For the levelfile and 2D map stuff I also use X any Y axis for the tile map most of the time.
+//My 3D world setup (for rendering) using Irrlicht has X and Z for the tile map, and Y is the height. And to make things worse my Irrlicht vertice X and Y coordinates
+//have a swapped sign (are negative) currently.
+
+//I have decided to also use the original games coordinate system in all vanilla calculations. At the interface between
+//original game calculations and Irrlicht 3D coordinate system I have then to convert from one coordinate system setup to the other.
+//Thats the drawback I will have.
 
 //I really want to thank aybe for giving me the opportunity to look much deeper into the original game inner workings as I was ever able before.
 //Without this support I would not have been able to hopefully advance the current project more true to the original.
@@ -40,7 +44,10 @@ struct VehicleSensorPointStruct {
     irr::f32 Zpos;
     irr::f32 ZposFloor;
     irr::f32 ZposDiff;
-    irr::f32 ZposDisplacement;
+    //Important: Never remove initial value of 0.0f for
+    //ZposDisplacement below, otherwise the craft will
+    //show random/undefined behavior at the physics model start
+    irr::f32 ZposDisplacement = 0.0f;
     irr::f32 Rebound;
     irr::f32 ReboundLimit;
 };
@@ -66,6 +73,7 @@ struct VehicleFunctionFlagsStruct {
     bool Booster;
     bool Brake;
     bool BarrelRoll;
+    bool Pad6;  //seems to be used during collision detection with vector collision
 };
 
 struct VehicleCollideControlStruct {
@@ -84,9 +92,18 @@ struct VehicleCollideControlStruct {
 };
 
 struct VehicleStatsStruct {
-    irr::f32 Velocity;
-
     int16_t Behind;
+    int16_t Fuel;
+
+    int16_t Health;
+    irr::f32 Velocity;
+};
+
+struct VehicleViewStruct {
+    irr::core::vector3df Position;
+    irr::f32 AngleXY;
+    irr::f32 AngleZY;
+    irr::f32 AngleXZ;
 };
 
 /************************
@@ -103,16 +120,22 @@ public:
 
     void Update(irr::f32 frameDeltaTime);
 
+    void DrawDebug();
+
     bool KeyPressedTurnLeft = false;
     bool KeyPressedTurnRight = false;
     bool KeyPressedAccel = false;
     bool KeyPressedDeaccel = false;
 
-private:
-    Race* mRace = nullptr;
+    irr::scene::ICameraSceneNode* mOutsideCam = nullptr;
 
     //Thing data
     ThingDataStruct ThingData;
+
+private:
+    Race* mRace = nullptr;
+
+public:
 
     MomentumStruct Momentum;
 
@@ -133,13 +156,6 @@ private:
     //Stats
     VehicleStatsStruct Stats;
 
-    //variables which only I use in my project
-    irr::f32 mAbsTimeIntegrator = 0.0f;
-
-    //the mesh for the Irrlicht SceneNode model
-    irr::scene::IAnimatedMesh* mCraftMesh = nullptr;
-    irr::scene::IMeshSceneNode* mCraftNode = nullptr;
-
     irr::f32 mThrustEffectiveness = 0.0f;
     irr::f32 mSideslipFriction = 0.0f;
     irr::f32 mSideslipToThrust = 0.0f;
@@ -149,6 +165,18 @@ private:
     irr::f32 mFrictionLimit = 0.0f;
     irr::f32 mBounce = 0.0f;
     irr::f32 mMaximumZpos = 0.0f;
+private:
+
+    //variables which only I use in my project
+    irr::f32 mAbsTimeIntegrator = 0.0f;
+
+    irr::f32 mUpdateVehicleTimeIntegrator = 0.0f;
+
+    //the mesh for the Irrlicht SceneNode model
+    irr::scene::IAnimatedMesh* mCraftMesh = nullptr;
+    irr::scene::IMeshSceneNode* mCraftNode = nullptr;
+
+    VehicleViewStruct View;
 
     void SetupFlightModelConstants();
 
@@ -164,7 +192,36 @@ private:
     void vehicle_sensor_point_projection(irr::core::vector3df& delta);
     void vehicle_sensor_point_process(VehicleSensorPointStruct& sensor, irr::core::vector3df& slope, int8_t terrain);
     void vehicle_colide_map(irr::core::vector3df& delta);
+    void vehicle_colide_vectors(irr::core::vector3df& delta);
     void vehicle_move_mapwho(irr::core::vector3df& delta);
+    void vehicle_set_camera();
+
+    //Below are my functions and Members I need
+    //a local coordinate system point defined on the players craft
+    irr::core::vector3d<irr::f32> IrrLocalCraftFrontPnt;
+    irr::core::vector3d<irr::f32> IrrLocalCraftBackPnt;
+    irr::core::vector3d<irr::f32> IrrLocalCraftLeftPnt;
+    irr::core::vector3d<irr::f32> IrrLocalCraftRightPnt;
+    irr::core::vector3d<irr::f32> IrrLocalCraftOrigin;
+
+    irr::core::vector3d<irr::f32> IrrWorldCraftFrontPnt;
+    irr::core::vector3d<irr::f32> IrrWorldCraftBackPnt;
+    irr::core::vector3d<irr::f32> IrrWorldCraftLeftPnt;
+    irr::core::vector3d<irr::f32> IrrWorldCraftRightPnt;
+    irr::core::vector3d<irr::f32> IrrWorldCraftOrigin;
+
+    irr::core::vector3df IrrWorldDirVecForward;
+
+    void CalcCraftLocalFeatureCoordinates(irr::core::vector3d<irr::f32> NewPosition, irr::core::vector3d<irr::f32> NewFrontAt);
+    void UpdateCoordinates();
+
+    void UpdateSceneNode();
+    void UpdateCamera();
+
+    void ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot);
+    void ModelYaw(irr::scene::ISceneNode *node, irr::f32 rot);
+    void ModelPitch(irr::scene::ISceneNode *node, irr::f32 rot);
+    void ModelRoll(irr::scene::ISceneNode *node, irr::f32 rot);
 };
 
 #endif // VVEHICLE_H

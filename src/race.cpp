@@ -25,6 +25,8 @@
 #include "utils/fileutils.h"
 #include "utils/gamedbgwnd.h"
 #include "vanilla/vcalc.h"
+#include "vanilla/vtrack.h"
+#include "vanilla/debug/memdump.h"
 
 #include "draw/hud.h"
 
@@ -61,6 +63,8 @@
 
 #include "resources/texture.h"
 #include "resources/mapentry.h"
+
+#include "vanilla/debug/dbginterface.h"
 
 #include "game.h"
 #include "race.h"
@@ -635,6 +639,16 @@ Race::~Race() {
 
     for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
         (*it)->SetMyHUD(nullptr);
+    }
+
+    if (mVDbgInterface != nullptr) {
+        delete mVDbgInterface;
+        mVDbgInterface = nullptr;
+    }
+
+    if (mVTrack != nullptr) {
+        delete mVTrack;
+        mVTrack = nullptr;
     }
 
     //now we can free the HUD
@@ -1946,14 +1960,19 @@ void Race::Init() {
     ready = true;
 
     //for debugging vanilla stuff
-    if (false) {
+    if (mAddVVehicle) {
+        mVDbgInterface = new DbgInterface();
+
         this->mVCalc->Verify_vanilla_calculations();
 
-        irr::core::vector3df vPos = irr::core::vector3df(-15.0f, 11.0f, 105.0f);
-        vPos.Y = mVCalc->map_floor(vPos);
-        vPos.Y += 0.5f;
+        irr::core::vector3df testVehiclePos(-15.0f, 11.0f, 105.0f);
 
-        mVCraft = new VVehicle(this, vPos, vPos + irr::core::vector3df(0.0f, 0.0f, -1.0f));
+        irr::core::vector3df vPos = mVCalc->IrrlichtToVanillaCoord(testVehiclePos);
+        vPos.Z = mVCalc->map_floor(vPos);
+        vPos.Z += 0.5f;
+
+        mVCraft = new VVehicle(this, mVCalc->VanillaToIrrlichtCoord(vPos),
+                               mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));
     }
 
     //this->mGame->StopTime();
@@ -2209,6 +2228,10 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     //update timer
     UpdateTimers(frameDeltaTime);
 
+    if (mAddVVehicle) {
+     mVCraft->Update(frameDeltaTime);
+    }
+
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntMorphing);
 
     //update all cones
@@ -2258,6 +2281,7 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     if (!mDemoMode) {
         //camera control normal race
         ManagePlayerCamera();
+        //mGame->mSmgr->setActiveCamera(mVCraft->mOutsideCam);
     } else {
         //camera control for demo mode
         ManageCameraDemoMode(frameDeltaTime);
@@ -2657,7 +2681,8 @@ void Race::HandleDebugInput() {
    }
 
    if (mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_T)) {
-      // mVCalc->Update();
+      // mVCraft->Update(0.01);
+       AdvModel = true;
    }
 
    if(mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_C)) {
@@ -2733,12 +2758,28 @@ void Race::HandleInput(irr::f32 deltaTime) {
             bool playerNoTurningKeyPressed = true;
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_UP)) {
-                mPlayerVec.at(0)->Forward(deltaTime);
+                if (mAddVVehicle) {
+                mVCraft->KeyPressedAccel = true;
+                } else {
+                     mPlayerVec.at(0)->Forward(deltaTime);
+                }
+             } else {
+                 if (mAddVVehicle) {
+                   mVCraft->KeyPressedAccel = false;
+                 }
              }
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_DOWN))
              {
-                mPlayerVec.at(0)->Backward(deltaTime);
+                if (mAddVVehicle) {
+                mVCraft->KeyPressedDeaccel = true;
+                } else {
+                    mPlayerVec.at(0)->Backward(deltaTime);
+                }
+             } else {
+                 if (mAddVVehicle) {
+                   mVCraft->KeyPressedDeaccel = false;
+                 }
              }
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
@@ -2749,14 +2790,31 @@ void Race::HandleInput(irr::f32 deltaTime) {
              }
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_LEFT)) {
-                  mPlayerVec.at(0)->Left();
-                  mPlayerVec.at(0)->firstNoKeyPressed = true;
                   playerNoTurningKeyPressed = false;
+                  if (mAddVVehicle) {
+                    mVCraft->KeyPressedTurnLeft = true;
+                  } else {
+                       mPlayerVec.at(0)->Left();
+                       mPlayerVec.at(0)->firstNoKeyPressed = true;
+                  }
+             } else {
+                 if (mAddVVehicle) {
+                   mVCraft->KeyPressedTurnLeft = false;
+                 }
              }
+
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_RIGHT)) {
-                  mPlayerVec.at(0)->Right();
-                  mPlayerVec.at(0)->firstNoKeyPressed = true;
                   playerNoTurningKeyPressed = false;
+                  if (mAddVVehicle) {
+                    mVCraft->KeyPressedTurnRight = true;
+                  } else {
+                       mPlayerVec.at(0)->Right();
+                       mPlayerVec.at(0)->firstNoKeyPressed = true;
+                  }
+             } else {
+                 if (mAddVVehicle) {
+                   mVCraft->KeyPressedTurnRight = false;
+                 }
              }
 
              //if player has not pressed any turning key run this code
@@ -3308,6 +3366,10 @@ void Race::Render() {
         //DebugShowAllObstaclePlayers();
 
     // mVCalc->DebugDraw();
+
+    if (mVCraft != nullptr) {
+        //mVCraft->DrawDebug();
+    }
 }
 
 void Race::UpdatePlayersDbgFlag(irr::u8 debugFlag, bool enable) {
@@ -3648,9 +3710,10 @@ bool Race::LoadLevel() {
    //Add the original game calculation low level routines and mechanics I tried to
    //reproduce to be hopefully working together with this existing project
    mVCalc = new VCalculations(mGame, mLevelRes, mLevelTerrain, mLevelBlocks);
+   mVTrack = new VTrack(this);
 
    //Add test thing
-  // mVCalc->AddTestObject(irr::core::vector3df(-10.0f, 11.5f, 60.0f));
+   //mVCalc->AddTestObject(irr::core::vector3df(-10.0f, 11.5f, 60.0f));
 
    if (!SetupSky()) {
        return false;
@@ -4419,11 +4482,15 @@ void Race::ManagePlayerCamera() {
     if (playerCamera) {
         //get active camera of currently selected
         //player, and check if it has changed
-        if (this->currPlayerFollow != nullptr) {
-            activeCam = this->currPlayerFollow->DeliverActiveCamera();
+        if (!mAddVVehicle) {
+            if (this->currPlayerFollow != nullptr) {
+                activeCam = this->currPlayerFollow->DeliverActiveCamera();
 
-            //do we need to hide the player model?
-            hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
+                //do we need to hide the player model?
+                hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
+            }
+        } else {
+            activeCam = mVCraft->mOutsideCam;
         }
     } else {
         //free moving camera to inspect the level/map
@@ -4777,6 +4844,18 @@ void Race::createEntity(EntityItem *p_entity,
 
                 //remember a line between both waypoints for debugging purposes
                 ENTWallsegmentsLine_List->push_back(line);
+
+                irr::core::vector3df vanillaPosNext = next->getCenter();
+                vanillaPosNext.X = -vanillaPosNext.X;
+                vanillaPosNext.Y = vanillaPosNext.Z;
+                vanillaPosNext.Z = 0.0f; //the game has at this point of time no height information
+
+                irr::core::vector3df vanillaPosEntity = entity.getCenter();
+                vanillaPosEntity.X = -vanillaPosEntity.X;
+                vanillaPosEntity.Y = vanillaPosEntity.Z;
+                vanillaPosEntity.Z = 0.0f;  //the game has at this point of time no height information
+
+                mVTrack->insert_vect(vanillaPosNext, vanillaPosEntity);
             }
            ENTWallsegments_List->push_back(p_entity);
            break;

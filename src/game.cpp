@@ -20,6 +20,8 @@
 #include "utils/tprofile.h"
 #include "utils/gamedbgwnd.h"
 #include "draw/attribution.h"
+#include "vanilla/vvehicle.h"
+#include "vanilla/vbase.h"
 
 void Game::StopTime() {
     if (!mTimeStopped) {
@@ -1243,6 +1245,9 @@ void Game::GameLoopRace(irr::f32 frameDeltaTime) {
                     );*/
 
           swprintf(text2, 390, L"");
+
+         /*  swprintf(text2, 390, L"Increment.SpeedActual: %lf \nIncrementAdd.SpeedActual: %lf \nIncrementLimit.SpeedActual: %lf\nStat.Velocity: %lf", this->mCurrentRace->mVCraft->Increment.SpeedActual,
+                    this->mCurrentRace->mVCraft->IncrementAdd.SpeedActual, this->mCurrentRace->mVCraft->IncrementLimit.SpeedActual, this->mCurrentRace->mVCraft->Stats.Velocity);*/
 
        /* swprintf(text2, 390, L"Rot: %lf \n MoveXFloat %lf\n MoveXInt %d \n Wnd: %d %d %d %d\n %d %d \n", this->mCurrentRace->dbgSkyRotation, this->mCurrentRace->dbgSkyMoveXfloat,
                  this->mCurrentRace->dbgSkyMoveXInt, this->mCurrentRace->dbgSkyMovingWindow.UpperLeftCorner.X,

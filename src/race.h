@@ -139,6 +139,8 @@ struct CloneAngle;
 struct CloneRecording;
 class VCalculations;
 class VVehicle;
+class VTrack;
+class DbgInterface;
 
 class Race {
 public:
@@ -149,6 +151,8 @@ public:
     ~Race();
 
     VVehicle* mVCraft = nullptr;
+    VTrack* mVTrack = nullptr;
+    DbgInterface* mVDbgInterface = nullptr;
 
     bool ready;
 
@@ -327,6 +331,7 @@ public:
     void UpdatePlayersDbgFlag(irr::u8 debugFlag, bool enable);
     bool GetPlayersDbgFlagState(irr::u8 debugFlag);
 
+    bool AdvModel = false;
 private:
     std::string mLevelRootPath;
     std::string mLevelName;
@@ -563,6 +568,9 @@ private:
     std::vector<Collectable*> mType2CollectableForCleanupLater;
 
     void CreateChargingStations();
+
+    //Switch for the vanillia model
+    bool mAddVVehicle = false;
 
     //for improved sky
     irr::scene::ISceneNode* skydomeNode = nullptr;
