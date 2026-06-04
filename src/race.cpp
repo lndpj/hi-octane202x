@@ -26,6 +26,7 @@
 #include "utils/gamedbgwnd.h"
 #include "vanilla/vcalc.h"
 #include "vanilla/vtrack.h"
+#include "vanilla/vcamera.h"
 #include "vanilla/debug/memdump.h"
 
 #include "draw/hud.h"
@@ -651,6 +652,11 @@ Race::~Race() {
         mVTrack = nullptr;
     }
 
+    if (mVCamera != nullptr) {
+        delete mVCamera;
+        mVCamera = nullptr;
+    }
+
     //now we can free the HUD
     delete Hud1Player;
 
@@ -691,6 +697,10 @@ Race::~Race() {
 
     //remove camera SceneNode
     mCamera->remove();
+
+    if (vanTestCam != nullptr) {
+        vanTestCam->remove();
+    }
 
     //TODO: ExplosionLauncher does not have
     //a deconstructor, does not clean up inside!
@@ -1975,6 +1985,20 @@ void Race::Init() {
                                mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));
     }
 
+    mVCamera = new VCamera(this);
+
+    vanTestCam = mGame->mSmgr->addCameraSceneNode();
+    //Important: For this camera we need to bind Target and Rotation!
+    vanTestCam->bindTargetAndRotation(true);
+
+    //We also need to adjust the field of view so that
+    //we get the same view as in the original game
+    vanTestCam->setFOV(irr::core::PI / 2.1f);
+
+    //we need to change the near value so that we
+    //do not clip into the terrain
+    vanTestCam->setNearValue(0.1f);
+
     //this->mGame->StopTime();
   
     //only to test if we can save a levelfile properly!
@@ -2682,7 +2706,12 @@ void Race::HandleDebugInput() {
 
    if (mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_T)) {
       // mVCraft->Update(0.01);
-       AdvModel = true;
+     //  AdvModel = true;
+       //mVCraft->TestCamera();
+       mVCamera->selCamera++;
+       if (mVCamera->selCamera > 3) {
+           mVCamera->selCamera = 0;
+       }
    }
 
    if(mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_C)) {
@@ -2782,11 +2811,20 @@ void Race::HandleInput(irr::f32 deltaTime) {
                  }
              }
 
-             if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
-             {
-                mPlayerVec.at(0)->IsSpaceDown(true, deltaTime);
+             if (!mAddVVehicle) {
+                     if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
+                     {
+                        mPlayerVec.at(0)->IsSpaceDown(true, deltaTime);
+                     } else {
+                        mPlayerVec.at(0)->IsSpaceDown(false, deltaTime);
+                     }
              } else {
-                mPlayerVec.at(0)->IsSpaceDown(false, deltaTime);
+                 if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
+                 {
+                     mVCraft->KeyPressedBooster = true;
+                 } else {
+                     mVCraft->KeyPressedBooster = false;
+                 }
              }
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_LEFT)) {
@@ -3364,6 +3402,18 @@ void Race::Render() {
         //}
 
         //DebugShowAllObstaclePlayers();
+        /*MapEntry* entry;
+
+        for (size_t x = 0; x < 256; x++) {
+            for (size_t y = 0; y < 160; y++) {
+                entry = mLevelTerrain->levelRes->pMap[x][y];
+                if (entry->mVector != 0) {
+                    mLevelTerrain->DrawOutlineSelectedCell(irr::core::vector2di(x, y), mGame->mDrawDebug->cyan);
+                }
+            }
+        }
+
+        mVTrack->DrawDebugVectors();*/
 
     // mVCalc->DebugDraw();
 
@@ -4490,7 +4540,8 @@ void Race::ManagePlayerCamera() {
                 hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
             }
         } else {
-            activeCam = mVCraft->mOutsideCam;
+            //activeCam = mVCraft->mOutsideCam;
+            activeCam = vanTestCam;
         }
     } else {
         //free moving camera to inspect the level/map

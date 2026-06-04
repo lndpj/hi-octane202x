@@ -31,8 +31,8 @@
 //I really want to thank aybe for giving me the opportunity to look much deeper into the original game inner workings as I was ever able before.
 //Without this support I would not have been able to hopefully advance the current project more true to the original.
 
-#ifndef VTRACK_H
-#define VTRACK_H
+#ifndef VCAMERA_H
+#define VCAMERA_H
 
 #include "irrlicht.h"
 #include "vbase.h"
@@ -44,55 +44,60 @@
  ************************/
 
 class Race;
-class MapEntry;
+class VVehicle;
+class ParseCamera;
 
-//for performance reasons keep
-//data inside this struct in fixed
-//point arithmetic
-//Only exception is the angle
-struct TrackColVectStruct {
-    int32_t pos1X;
-    int32_t pos1Y;
-    int32_t pos1Z;
-    int32_t pos2X;
-    int32_t pos2Y;
-    int32_t pos2Z;
-    irr::f32 Angle;
+struct VCameraStruct {
+    irr::core::vector3df Position;
+    irr::core::vector3df Destination;
+    irr::f32 AngleXY = 0.0f;
+    irr::f32 AngleZY = 0.0f;
+    irr::f32 AngleXZ = 0.0f;
+    //irr::f32 Lens;
+    irr::f32 Distance;
+    //int16_t Follow;
+    //int16_t Zoom;
+    int16_t Static;
+    int16_t Action;
 };
 
-struct TrackColVectListStruct {
-    int16_t Vect;
-    int16_t NextColList;
+struct VCameraWindowStruct {
+   VCameraStruct Camera;
+   VCameraStruct ChaseCamera;
+   /*irr::core::vector3df Position;
+   irr::core::vector3df Size;
+   int32_t Update;*/
 };
 
-class VTrack {
+class VCamera {
 
 private:
     Race* mParentRace = nullptr;
 
-    void add_collision_to_single_mapwho(irr::f32 x, irr::f32 y);
-    uint8_t do_move_colide(irr::f32 x1Float, irr::f32 y1Float, irr::f32 x2Float, irr::f32 y2Float, MapEntry* me);
-    void DebugDrawTrackColVectStruct(TrackColVectStruct* whichStruct);
+    void camera_process_position(VVehicle* whichVehicle, VCameraWindowStruct& vanillaOutputCameraWindow,
+                                 irr::f32 distance, irr::f32 degrees);
+
+    //seems to be an array of 16 structs
+    //with 70 bytes size each
+    int16_t word_8011EF2C[1120];
+    int16_t word_8011EF32[1120];
+
+    VCameraWindowStruct mCameraWindow;
+    VCameraStruct mRenderCamera;
+
+    void camera_setup();
 
 public:
-    VTrack(Race* parentRace);
-    ~VTrack();
+    VCamera(Race* parentRace);
+    ~VCamera();
 
-    void DrawDebugVectors();
+    void camera_process(/*int32_t player_number*/ VVehicle* whichVehicle, int32_t force_camera_action, int32_t cameraIndex);
 
-    //Move to private after debugging is done
-    irr::f32 TrackCollisionVectorAngle;
-    int16_t NextColVect = 1;
-    int16_t NextVectsList = 1;
+    //sets an Irrlicht camera in a way to replicate the original games camera view
+    void SetIrrlichtCamera(irr::scene::ICameraSceneNode* whichCamera, ParseCamera* setToState);
+    void SetIrrlichtCamera(irr::scene::ICameraSceneNode* whichCamera, VCameraStruct* setToState);
 
-    TrackColVectStruct ColVects[250];
-    TrackColVectListStruct ColVectsList[10000];
-
-    int32_t TrackCollisionVectorX;
-    int32_t TrackCollisionVectorY;
-
-    void insert_vect(irr::core::vector3df position1, irr::core::vector3df position2);
-    uint16_t track_vector_collide(irr::core::vector3df position1, irr::core::vector3df position2);
+    uint8_t selCamera = 0;
 };
 
-#endif // VTRACK_H
+#endif // VCAMERA_H

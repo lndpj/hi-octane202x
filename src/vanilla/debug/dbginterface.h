@@ -48,10 +48,10 @@ public:
     MemDump* newDump = nullptr;
     MemDump* newDump2 = nullptr;
 
+    size_t mDumpLevelStructStart;
+
 private:
     BinaryFile* levelData = nullptr;
-
-    size_t mDumpLevelStructStart;
 
     void WriteDataToBinaryFile(std::string fileName, std::vector<uint8_t> data);
 

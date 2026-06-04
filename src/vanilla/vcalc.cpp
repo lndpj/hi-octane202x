@@ -54,6 +54,20 @@ VCalculations::VCalculations(InfrastructureBase* infra, LevelFile* levelFile, Le
     testTex = mInfra->mDriver->getTexture("extract/sprites/tmaps0029.png");
 }
 
+//projects vector a onto vector b
+irr::core::vector3df VCalculations::VectorProjection(const irr::core::vector3df& a, const irr::core::vector3df& b) {
+    irr::f32 dotAB = a.dotProduct(b);
+    irr::f32 lenSqB = b.getLengthSQ();
+
+    // make sure to prevent division by zero (if vector b has a length of 0.0)
+    if (lenSqB < 0.0001f) {
+        return irr::core::vector3df(0.0f, 0.0f, 0.0f);
+    }
+
+    // calculate scaling factor and multiply
+    return b * (dotAB / lenSqB);
+}
+
 irr::core::vector3df VCalculations::VanillaToIrrlichtCoord(irr::core::vector3df vanillaCoord) {
     irr::core::vector3df result;
 
@@ -751,6 +765,25 @@ int8_t VCalculations::map_colide_direction_xy(irr::core::vector3df oldPosition, 
     }
 
     return (result & 0xF7);
+}
+
+int8_t VCalculations::map_colide_4point(irr::core::vector3df position, irr::f32 size_x,
+                                         irr::f32 size_y) {
+    irr::core::vector3df positiona;
+
+    positiona = position;
+    positiona.X -= size_x * 0.5f;
+    positiona.Y -= size_y * 0.5f;
+    //TODO: Lines below with ignoring return value look
+    //weird. Is that a Pseudo C Code mistake?
+    map_colide(positiona);
+    positiona.X += size_x;
+    map_colide(positiona);
+    positiona.X -= size_x;
+    positiona.Y += size_y;
+    int8_t v6 = map_colide(positiona);
+    positiona.X += size_x;
+    return (v6 | map_colide(positiona));
 }
 
 /***************************************************

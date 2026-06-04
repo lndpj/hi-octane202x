@@ -21,6 +21,7 @@
 #include "utils/gamedbgwnd.h"
 #include "draw/attribution.h"
 #include "vanilla/vvehicle.h"
+#include "vanilla/vcamera.h"
 #include "vanilla/vbase.h"
 
 void Game::StopTime() {
@@ -1244,7 +1245,8 @@ void Game::GameLoopRace(irr::f32 frameDeltaTime) {
                     this->mCurrentRace->mPlayerVec.at(1)->mCurrentPathSegSortedOutReverse.size()
                     );*/
 
-          swprintf(text2, 390, L"");
+          //swprintf(text2, 390, L"");
+          swprintf(text2, 390, L"%lf", mCurrentRace->mVCraft->mDeltaTimeFactor );
 
          /*  swprintf(text2, 390, L"Increment.SpeedActual: %lf \nIncrementAdd.SpeedActual: %lf \nIncrementLimit.SpeedActual: %lf\nStat.Velocity: %lf", this->mCurrentRace->mVCraft->Increment.SpeedActual,
                     this->mCurrentRace->mVCraft->IncrementAdd.SpeedActual, this->mCurrentRace->mVCraft->IncrementLimit.SpeedActual, this->mCurrentRace->mVCraft->Stats.Velocity);*/
@@ -1287,6 +1289,10 @@ void Game::GameLoopRace(irr::f32 frameDeltaTime) {
             dbgText->setText(text2);
 
             delete[] text2;
+    }
+
+    if ((mCurrentRace->mVCamera != nullptr) && (mCurrentRace->mVCraft != nullptr)) {
+        mCurrentRace->mVCamera->camera_process(mCurrentRace->mVCraft, -1, 0);
     }
 
     mDriver->beginScene(true,true,

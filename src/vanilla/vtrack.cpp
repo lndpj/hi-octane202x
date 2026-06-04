@@ -33,8 +33,10 @@
 
 #include "vtrack.h"
 #include "../race.h"
+#include "../game.h"
 #include "../resources/levelfile.h"
 #include "../models/levelterrain.h"
+#include "../draw/drawdebug.h"
 #include "../resources/mapentry.h"
 #include "../vanilla/vcalc.h"
 
@@ -43,6 +45,43 @@ VTrack::VTrack(Race* parentRace) {
 
     NextColVect = 1;
     NextVectsList = 1;
+}
+
+void VTrack::DebugDrawTrackColVectStruct(TrackColVectStruct* whichStruct) {
+    irr::core::vector3df vanillaPos1;
+    irr::core::vector3df vanillaPos2;
+
+    vanillaPos1.X = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos1X));
+    vanillaPos1.Y = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos1Y));
+    vanillaPos1.Z = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos1Z));
+
+    vanillaPos2.X = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos2X));
+    vanillaPos2.Y = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos2Y));
+    vanillaPos2.Z = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos2Z));
+
+    irr::core::vector3df vanillaMidPoint = (vanillaPos1 + vanillaPos2) * irr::core::vector3df(0.5f, 0.5f, 0.5f);
+    irr::core::vector3df vanillaMove1 = vanillaMidPoint;
+    irr::core::vector3df vanillaMove2 = vanillaMidPoint;
+    irr::f32 len = (vanillaPos1 - vanillaPos2).getLength();
+
+    mParentRace->mVCalc->move_xyz(vanillaMove1, whichStruct->Angle, 0.0f, len * 0.25f);
+    mParentRace->mVCalc->move_xyz(vanillaMove2, whichStruct->Angle - 180.0f, 0.0f, len * 0.25f);
+
+    irr::core::vector3df irrPos1 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaPos1);
+    irr::core::vector3df irrPos2 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaPos2);
+    irr::core::vector3df irrMidPoint = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMidPoint);
+    irr::core::vector3df irrMove1 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMove1);
+    irr::core::vector3df irrMove2 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMove2);
+
+    mParentRace->mGame->mDrawDebug->Draw3DLine(irrPos1, irrPos2, mParentRace->mGame->mDrawDebug->blue);
+    mParentRace->mGame->mDrawDebug->Draw3DLine(irrMidPoint, irrMove1, mParentRace->mGame->mDrawDebug->green);
+    mParentRace->mGame->mDrawDebug->Draw3DLine(irrMidPoint, irrMove2, mParentRace->mGame->mDrawDebug->orange);
+}
+
+void VTrack::DrawDebugVectors() {
+    for (size_t idx = 0; idx < this->NextColVect; idx++) {
+        DebugDrawTrackColVectStruct(&this->ColVects[idx]);
+    }
 }
 
 void VTrack::add_collision_to_single_mapwho(irr::f32 x, irr::f32 y) {
@@ -377,6 +416,7 @@ uint16_t VTrack::track_vector_collide(irr::core::vector3df position1, irr::core:
     MapEntry *me2 = mParentRace->mLevelTerrain->levelRes->pMap[cell1X][cell2Y];
     MapEntry *me3 = mParentRace->mLevelTerrain->levelRes->pMap[cell1Y + v8][cell1X + v5];
 
+    //do_move_colide returns 1 if a collision with a wallsegment occurs
     uint8_t v9 = do_move_colide(position1.X, position1.Y, position2.X, position2.Y, me1);
     if (v8 && !v9) {
         v9 = do_move_colide(position1.X, position1.Y, position2.X, position2.Y, me2);

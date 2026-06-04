@@ -72,6 +72,8 @@ public:
     void AddTestObject(irr::core::vector3df position);
     int8_t UpdateTestObject(irr::f32 frameDeltaTime, ThingDataStruct& whichThing);
 
+    irr::core::vector3df VectorProjection(const irr::core::vector3df& a, const irr::core::vector3df& b);
+
     void Update();
 
     //Convert a float into a fixed point number (8.8 format)
@@ -170,6 +172,9 @@ public:
     //This function was written to behave similar to the function
     //map_colide_direction_xy in the original game
     int8_t map_colide_direction_xy(irr::core::vector3df oldPosition, irr::core::vector3df newPosition);
+
+    int8_t map_colide_4point(irr::core::vector3df position, irr::f32 size_x,
+                              irr::f32 size_y);
 
     //This function was written to behave similar to the function
     //move_displacement_xyz in the original game

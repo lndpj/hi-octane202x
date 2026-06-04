@@ -59,6 +59,8 @@ struct ThingDataStruct {
     MovementStruct Movement;
     irr::core::vector3df Displacement;
 
+    uint32_t AffectStatus = 0;
+
     bool Stationary = false;
     int16_t Life = 1000;
     uint8_t mTimeSlice = 0;
