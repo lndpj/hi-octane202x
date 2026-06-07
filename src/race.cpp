@@ -1975,7 +1975,7 @@ void Race::Init() {
 
         this->mVCalc->Verify_vanilla_calculations();
 
-        irr::core::vector3df testVehiclePos(-15.0f, 11.0f, 105.0f);
+        irr::core::vector3df testVehiclePos(mPlayerStartLocations.at(0));
 
         irr::core::vector3df vPos = mVCalc->IrrlichtToVanillaCoord(testVehiclePos);
         vPos.Z = mVCalc->map_floor(vPos);
@@ -3402,20 +3402,25 @@ void Race::Render() {
         //}
 
         //DebugShowAllObstaclePlayers();
-        /*MapEntry* entry;
+    /*    MapEntry* entry;
 
         for (size_t x = 0; x < 256; x++) {
             for (size_t y = 0; y < 160; y++) {
                 entry = mLevelTerrain->levelRes->pMap[x][y];
                 if (entry->mVector != 0) {
-                    mLevelTerrain->DrawOutlineSelectedCell(irr::core::vector2di(x, y), mGame->mDrawDebug->cyan);
+                    mLevelTerrain->DrawOutlineSelectedCell(irr::core::vector2di(x, y), mGame->mDrawDebug->blue);
                 }
             }
-        }
+        }*/
 
-        mVTrack->DrawDebugVectors();*/
+      //  mVTrack->DrawDebugVectors();
 
     // mVCalc->DebugDraw();
+    /*if (mVTrack->collided) {
+        mGame->mDrawDebug->Draw3DLine(mVTrack->debugCol1Vec1, mVTrack->debugCol1Vec2, mGame->mDrawDebug->red);
+    } else {
+        mGame->mDrawDebug->Draw3DLine(mVTrack->debugCol1Vec1, mVTrack->debugCol1Vec2, mGame->mDrawDebug->cyan);
+    }*/
 
     if (mVCraft != nullptr) {
         //mVCraft->DrawDebug();
@@ -4896,17 +4901,15 @@ void Race::createEntity(EntityItem *p_entity,
                 //remember a line between both waypoints for debugging purposes
                 ENTWallsegmentsLine_List->push_back(line);
 
-                irr::core::vector3df vanillaPosNext = next->getCenter();
-                vanillaPosNext.X = -vanillaPosNext.X;
-                vanillaPosNext.Y = vanillaPosNext.Z;
-                vanillaPosNext.Z = 0.0f; //the game has at this point of time no height information
+                irr::core::vector3df irrPosNext = next->getCenter();
+                irr::core::vector3df vanPosNext = mVCalc->IrrlichtToVanillaCoord(irrPosNext);
+                vanPosNext.Z = 0.0f; //the game has at this point of time no height information
 
-                irr::core::vector3df vanillaPosEntity = entity.getCenter();
-                vanillaPosEntity.X = -vanillaPosEntity.X;
-                vanillaPosEntity.Y = vanillaPosEntity.Z;
-                vanillaPosEntity.Z = 0.0f;  //the game has at this point of time no height information
+                irr::core::vector3df irrPosEntity = entity.getCenter();
+                irr::core::vector3df vanPosEntity = mVCalc->IrrlichtToVanillaCoord(irrPosEntity);
+                vanPosEntity.Z = 0.0f; //the game has at this point of time no height information
 
-                mVTrack->insert_vect(vanillaPosNext, vanillaPosEntity);
+                mVTrack->insert_vect(vanPosNext, vanPosEntity);
             }
            ENTWallsegments_List->push_back(p_entity);
            break;

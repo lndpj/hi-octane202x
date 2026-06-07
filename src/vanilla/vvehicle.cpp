@@ -122,7 +122,7 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
     }
 
     mUpdateVehicleTimeIntegrator += frameDeltaTime;
-    if (mUpdateVehicleTimeIntegrator >= 0.003) {
+    if (mUpdateVehicleTimeIntegrator >= 0.03) {
         //the original game does not use DeltaTime which
         //means depending on the speed the CPU is running the
         //game speed completely changes, which is not a good thing
@@ -152,6 +152,12 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         //CPU clocks at 33.8688 MHz, which means lets run this loop every ~50.83 ms
 
         vehicle_control_from_player();
+
+       /* mRace->mVDbgInterface->Init(std::string("coll.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
+        ParseThing* thing = mRace->mVDbgInterface->newDump->ReturnThingFirstPlayer();
+        mRace->mVDbgInterface->newDump->ThingVehicle->Update(mRace->mVDbgInterface->mDumpLevelStructStart + 0x40B3C + thing->VehicleIndex->mRawValue * 0x1F0);
+
+        mRace->mVDbgInterface->SetVehicleStatePlayerFromMemDump(*this, mRace->mVDbgInterface->newDump);*/
 
         vehicle_get_track_friction();
         vehicle_calculate_angle();
@@ -309,8 +315,8 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    mCraftNode->setRotation(((NewFrontAt-NewPosition).normalize()).getHorizontalAngle()+ irr::core::vector3df(0.0f, 180.0f, 0.0f));
    mCraftNode->setPosition(NewPosition);
 
-   mCraftNode->setDebugDataVisible(EDS_BBOX);
-   //mCraftNode->setDebugDataVisible(EDS_OFF);
+   //mCraftNode->setDebugDataVisible(EDS_BBOX);
+   mCraftNode->setDebugDataVisible(EDS_OFF);
 
    mCraftNode->setScale(irr::core::vector3d<irr::f32>(1,1,1));
    mCraftNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
@@ -402,6 +408,8 @@ LABEL_18_vehicle_calculate_angle:
     }
 
     ThingData.Movement.AngleXY += Increment.AngleXY;
+
+    mRace->mVCalc->UnwrapPhaseSigned(ThingData.Movement.AngleXY);
 }
 
 void VVehicle::vehicle_calculate_thrust(irr::core::vector3df& delta) {
@@ -1106,16 +1114,20 @@ void VVehicle::vehicle_colide_vectors(irr::core::vector3df& delta) {
     irr::f32 xy;
     irr::f32 trackCollVecAngle;
     irr::f32 angleDiff;
+    irr::f32 angleDiff2;
+    irr::f32 angleDiff3;
     irr::f32 v11;
     irr::f32 v13;
     irr::f32 v15;
     irr::f32 v16;
     irr::f32 v19;
     irr::f32 v20;
-    irr::f32 v21;
+    irr::f32 aligmentErrorSgnd;
+    irr::f32 aligmentErrorAbs;
     irr::f32 v24;
     bool v8;
     bool v18;
+    irr::f32 thingMoveAngleXY;
 
     //Pad6 flag seems to be used for vehicle collision
     //with vectors
@@ -1125,11 +1137,16 @@ void VVehicle::vehicle_colide_vectors(irr::core::vector3df& delta) {
             goto vehicle_colide_vectors_LABEL31;
         }
         FlightModel.FunctionFlag.Pad6 = true;
+
         xy = mRace->mVCalc->angle_get_xy(ThingData.Position, position2);
-        if (mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 0.0f) {
-            v8 = (-mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        mRace->mVCalc->UnwrapPhaseSigned(xy);
+
+        angleDiff3 = mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle);
+
+        if (angleDiff3 < 0.0f) {
+            v8 = ((-angleDiff3) < 90.0054931640625f);
         } else {
-            v8 = (mRace->mVCalc->angle_get_difference(xy, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+            v8 = (angleDiff3 < 90.0054931640625f);
         }
 
         if (v8) {
@@ -1152,14 +1169,25 @@ void VVehicle::vehicle_colide_vectors(irr::core::vector3df& delta) {
            v11 += 4.998779296875f * (v15 / v16);
         }
 
+        //uncomment next line for testing of second part
+        //v13 = 0.0f;
         mRace->mVCalc->move_displacement_set(delta, v11, 0.0f, v13);
 
-        if (mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 0.0f) {
-              v18 =
-                 (-mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+        //2nd Part: The second part below is a control loop which aligns the players
+        //current flight direction/view along the "barrier"/vector so that the craft
+        //moves along the vector
+
+        thingMoveAngleXY = ThingData.Movement.AngleXY;
+        mRace->mVCalc->UnwrapPhaseSigned(thingMoveAngleXY);
+
+        angleDiff2 = mRace->mVCalc->angle_get_difference(thingMoveAngleXY, mRace->mVTrack->TrackCollisionVectorAngle);
+
+        //std::cout << "Thing Move AngleXY: " << ThingData.Movement.AngleXY << " TrackCollVecAngle: " << mRace->mVTrack->TrackCollisionVectorAngle << " angleDiff2 = " << angleDiff2 << " v13 = " << v13 << std::endl;
+
+        if (angleDiff2 < 0.0f) {
+              v18 = (-angleDiff2 < 90.0054931640625f);
         } else {
-            v18 =
-                 (mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, mRace->mVTrack->TrackCollisionVectorAngle) < 90.0054931640625f);
+            v18 = (angleDiff2 < 90.0054931640625f);
         }
 
         if (v18) {
@@ -1168,21 +1196,31 @@ void VVehicle::vehicle_colide_vectors(irr::core::vector3df& delta) {
             v19 = mRace->mVTrack->TrackCollisionVectorAngle + 180.0f;
         }
 
-        v21 = mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, v19);
+        aligmentErrorSgnd = mRace->mVCalc->angle_get_difference(thingMoveAngleXY, v19);
 
-        v20 = v21;
-        v21 = fabs(v21);
+        v20 = aligmentErrorSgnd;
+        aligmentErrorAbs = fabs(aligmentErrorSgnd);
 
-        if ( v21 >= 0.999755859375f) {
+        if ( aligmentErrorAbs >= 0.999755859375f) {
+            //std::cout << "Error: " << v20 << std::endl;
             v24 = v20 / 16.0f;
             if (v20 < 0.0f) {
                 v24 = (v20 + 0.0823974609375f) / 16.0f;
             }
         } else {
+            //std::cout << "No error" << std::endl;
+            //I do not understand why according to original we add something to the angle if there is no
+            //error anymore; This causes all kind of weird affects for me; Therefore replaced
+            //original next line with 0.0f value below. But maybe this causes other problems I
+            //do not know yet
             v24 = 1.99951171875f;
+            //v24 = 0.0f;
         }
 
         ThingData.Movement.AngleXY += v24;
+
+        mRace->mVCalc->UnwrapPhaseSigned(ThingData.Movement.AngleXY);
+
         position2 = ThingData.Position;
         position2 += delta;
     }

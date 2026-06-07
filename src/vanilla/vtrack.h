@@ -38,6 +38,7 @@
 #include "vbase.h"
 #include <cstdint>
 #include <vector>
+#include <string>
 
 /************************
  * Forward declarations *
@@ -45,6 +46,7 @@
 
 class Race;
 class MapEntry;
+struct ColorStruct;
 
 //for performance reasons keep
 //data inside this struct in fixed
@@ -74,11 +76,14 @@ private:
     uint8_t do_move_colide(irr::f32 x1Float, irr::f32 y1Float, irr::f32 x2Float, irr::f32 y2Float, MapEntry* me);
     void DebugDrawTrackColVectStruct(TrackColVectStruct* whichStruct);
 
+    void Trap(std::string trapInfo);
+
 public:
     VTrack(Race* parentRace);
     ~VTrack();
 
     void DrawDebugVectors();
+    void DrawDbgOutput(std::vector<irr::core::line3df>& dbgOutput, ColorStruct* color);
 
     //Move to private after debugging is done
     irr::f32 TrackCollisionVectorAngle;

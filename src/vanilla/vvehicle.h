@@ -163,7 +163,6 @@ private:
     Race* mRace = nullptr;
 
 public:
-
     MomentumStruct Momentum;
 
     //for player input

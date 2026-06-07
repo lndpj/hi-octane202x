@@ -47,9 +47,20 @@ VTrack::VTrack(Race* parentRace) {
     NextVectsList = 1;
 }
 
+void VTrack::Trap(std::string trapInfo) {
+    logging::Error(trapInfo);
+    mParentRace->mGame->StopTime();
+}
+
 void VTrack::DebugDrawTrackColVectStruct(TrackColVectStruct* whichStruct) {
     irr::core::vector3df vanillaPos1;
     irr::core::vector3df vanillaPos2;
+    irr::core::vector3df vanillaMidPoint;
+    irr::core::vector3df vanillaMove1;
+    irr::core::vector3df vanillaMove2;
+    irr::f32 len;
+
+    bool drawAngleTest = false;
 
     vanillaPos1.X = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos1X));
     vanillaPos1.Y = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos1Y));
@@ -59,29 +70,39 @@ void VTrack::DebugDrawTrackColVectStruct(TrackColVectStruct* whichStruct) {
     vanillaPos2.Y = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos2Y));
     vanillaPos2.Z = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos2Z));
 
-    irr::core::vector3df vanillaMidPoint = (vanillaPos1 + vanillaPos2) * irr::core::vector3df(0.5f, 0.5f, 0.5f);
-    irr::core::vector3df vanillaMove1 = vanillaMidPoint;
-    irr::core::vector3df vanillaMove2 = vanillaMidPoint;
-    irr::f32 len = (vanillaPos1 - vanillaPos2).getLength();
+    if (drawAngleTest) {
+        vanillaMidPoint = (vanillaPos1 + vanillaPos2) * irr::core::vector3df(0.5f, 0.5f, 0.5f);
+        vanillaMove1 = vanillaMidPoint;
+        vanillaMove2 = vanillaMidPoint;
+        len = (vanillaPos1 - vanillaPos2).getLength();
 
-    mParentRace->mVCalc->move_xyz(vanillaMove1, whichStruct->Angle, 0.0f, len * 0.25f);
-    mParentRace->mVCalc->move_xyz(vanillaMove2, whichStruct->Angle - 180.0f, 0.0f, len * 0.25f);
+        mParentRace->mVCalc->move_xyz(vanillaMove1, whichStruct->Angle, 0.0f, len * 0.25f);
+        mParentRace->mVCalc->move_xyz(vanillaMove2, whichStruct->Angle - 180.0f, 0.0f, len * 0.25f);
+    }
 
     irr::core::vector3df irrPos1 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaPos1);
     irr::core::vector3df irrPos2 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaPos2);
-    irr::core::vector3df irrMidPoint = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMidPoint);
-    irr::core::vector3df irrMove1 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMove1);
-    irr::core::vector3df irrMove2 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMove2);
 
     mParentRace->mGame->mDrawDebug->Draw3DLine(irrPos1, irrPos2, mParentRace->mGame->mDrawDebug->blue);
-    mParentRace->mGame->mDrawDebug->Draw3DLine(irrMidPoint, irrMove1, mParentRace->mGame->mDrawDebug->green);
-    mParentRace->mGame->mDrawDebug->Draw3DLine(irrMidPoint, irrMove2, mParentRace->mGame->mDrawDebug->orange);
+
+    if (drawAngleTest) {
+        irr::core::vector3df irrMidPoint = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMidPoint);
+        irr::core::vector3df irrMove1 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMove1);
+        irr::core::vector3df irrMove2 = mParentRace->mVCalc->VanillaToIrrlichtCoord(vanillaMove2);
+
+        mParentRace->mGame->mDrawDebug->Draw3DLine(irrMidPoint, irrMove1, mParentRace->mGame->mDrawDebug->green);
+        mParentRace->mGame->mDrawDebug->Draw3DLine(irrMidPoint, irrMove2, mParentRace->mGame->mDrawDebug->orange);
+    }
 }
 
 void VTrack::DrawDebugVectors() {
     for (size_t idx = 0; idx < this->NextColVect; idx++) {
         DebugDrawTrackColVectStruct(&this->ColVects[idx]);
     }
+/*
+    DrawDbgOutput(DbgUsedColVecMe1, mParentRace->mGame->mDrawDebug->cyan);
+   DrawDbgOutput(DbgUsedColVecMe2, mParentRace->mGame->mDrawDebug->orange);
+    DrawDbgOutput(DbgUsedColVecMe3, mParentRace->mGame->mDrawDebug->pink);*/
 }
 
 void VTrack::add_collision_to_single_mapwho(irr::f32 x, irr::f32 y) {
@@ -165,11 +186,20 @@ void VTrack::insert_vect(irr::core::vector3df position1, irr::core::vector3df po
            v23 = 0;
 
            if (v18) {
+               if ((v18 == -1) && (v17 == 0x80000000)) {
+                   Trap(std::string("Trap insert_vect 1"));
+                   return;
+               }
                v23 = (v17 / v18) << 8;
            }
 
            v25 = v18;
            v26 = abs(v23);
+           if ((v26 == -1) && (v25 == 0x80000000)) {
+               Trap(std::string("Trap insert_vect 2"));
+               return;
+           }
+
            v22 = v25 / v26;
 
            if (!(v25 / v26)) {
@@ -177,22 +207,40 @@ void VTrack::insert_vect(irr::core::vector3df position1, irr::core::vector3df po
               std::cout << "break!" << std::endl;
            }
 
+           if ((v22 == -1) && (v15 == 0x80000000)) {
+               Trap(std::string("Trap insert_vect 3"));
+               return;
+           }
            v19 = v15 / v22;
            v24 = pos1X;
         } else {
            v19 = 0;
 
            if (v16) {
+               if ((v16 == -1) && (v15 == 0x80000000)) {
+                   Trap(std::string("Trap insert_vect 4"));
+                   return;
+               }
                v19 = (v15 / v16) << 8;
            }
 
            v20 = v16;
            v21 = abs(v19);
+           if ((v21 == -1) && (v20 == 0x80000000)) {
+               Trap(std::string("Trap insert_vect 5"));
+               return;
+           }
+
            v22 = v20 / v21;
 
            if (!(v20 / v21)) {
              //  break;
              std::cout << "break!" << std::endl;
+           }
+
+           if ((v22 == -1) && (v17 == 0x80000000)) {
+               Trap(std::string("Trap insert_vect 1"));
+               return;
            }
 
            v23 = v17 / v22;
@@ -223,6 +271,15 @@ void VTrack::insert_vect(irr::core::vector3df position1, irr::core::vector3df po
         }
         ++this->NextColVect;
    }
+}
+
+void VTrack::DrawDbgOutput(std::vector<irr::core::line3df>& dbgOutput, ColorStruct* color) {
+    std::vector<irr::core::line3df>::iterator it;
+
+    for (it = dbgOutput.begin(); it != dbgOutput.end(); ++it) {
+        mParentRace->mGame->mDrawDebug->Draw3DLine((*it).start , (*it).end, color);
+    }
+
 }
 
 uint8_t VTrack::do_move_colide(irr::f32 x1Float, irr::f32 y1Float, irr::f32 x2Float, irr::f32 y2Float, MapEntry* me)
@@ -277,6 +334,7 @@ uint8_t VTrack::do_move_colide(irr::f32 x1Float, irr::f32 y1Float, irr::f32 x2Fl
             v13 = v11->pos1X;
             Ypos = ColVects[ColVectsList[v6].Vect].pos1Y;
             v15 = ColVects[ColVectsList[v6].Vect].pos2Y;
+
             v16 = Xpos - v13;
             v17 = v13;
             if ((Xpos - v13) < 0) {
@@ -414,10 +472,11 @@ uint16_t VTrack::track_vector_collide(irr::core::vector3df position1, irr::core:
 
     MapEntry *me1 = mParentRace->mLevelTerrain->levelRes->pMap[cell1X][cell1Y];
     MapEntry *me2 = mParentRace->mLevelTerrain->levelRes->pMap[cell1X][cell2Y];
-    MapEntry *me3 = mParentRace->mLevelTerrain->levelRes->pMap[cell1Y + v8][cell1X + v5];
+    MapEntry *me3 = mParentRace->mLevelTerrain->levelRes->pMap[cell1X + v5][cell1Y + v8];
 
     //do_move_colide returns 1 if a collision with a wallsegment occurs
     uint8_t v9 = do_move_colide(position1.X, position1.Y, position2.X, position2.Y, me1);
+
     if (v8 && !v9) {
         v9 = do_move_colide(position1.X, position1.Y, position2.X, position2.Y, me2);
     }

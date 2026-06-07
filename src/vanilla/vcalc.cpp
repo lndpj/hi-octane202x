@@ -1116,7 +1116,7 @@ irr::f32 VCalculations::arctanPlusMultiply32(irr::f32 x, irr::f32 y) {
     //with the results from the arctan function in the original game
     //for some iterations (stepping with emulator), and saw that I have
     //to additionally to do the follow to make the results fit
-    if (result >= 0.0) {
+    if (result > 0.0) {
         result = (180.0f - result);
     } else {
         result = (-180.0f - result);
@@ -1189,8 +1189,106 @@ irr::f32 VCalculations::angle_get_xy(irr::core::vector3df position_from, irr::co
                                 position_to.Y - position_from.Y);
 }
 
+bool VCalculations::verify_angle_get_difference_step(int16_t angle1, int16_t angle2, int16_t expResult,
+                                                     int16_t whichSeqCaseTested) {
+    irr::f32 angle1Floating = ((FixedPointToFloat8D8(angle1) / 256.0f) * 360.0f);
+    irr::f32 angle2Floating = ((FixedPointToFloat8D8(angle2) / 256.0f) * 360.0f);
+
+    //Careful: This function returns the angle in degress for a 360° unit circle
+    //The original game uses inside a 256° (step) unit circle!
+    irr::f32 testResult = angle_get_difference(angle1Floating, angle2Floating);
+    int16_t testResultFixed = FloatToFixedPoint8D8((testResult / 360.0f) * 256.0f);
+
+    int32_t errorAngle = abs(expResult - testResultFixed);
+
+    if (errorAngle > 2) {
+        std::string infoTxt("verify_angle_get_difference_step: Testcase for following sequence failed: ");
+        infoTxt += std::to_string((int)(whichSeqCaseTested));
+        infoTxt += " Angle Difference: ";
+        infoTxt += std::to_string((int)(expResult - testResultFixed));
+        infoTxt += " dec!";
+
+        logging::Error(infoTxt);
+        return false;
+    }
+
+    return true;
+}
+
+//Returns true if angle_get_difference works as expected, False
+//otherwise
+bool VCalculations::Verify_angle_get_difference() {
+    bool overallResult = true;
+
+    //Test data captured in original game using emulator and debugger
+    overallResult &= verify_angle_get_difference_step(0x0000, 0x7300, 0x7300, 1);
+    overallResult &= verify_angle_get_difference_step(0x0000, 0x8000, 0x8000, 2);
+    overallResult &= verify_angle_get_difference_step(0x0053, 0x9FE0, 0x9F8D, 3);
+    overallResult &= verify_angle_get_difference_step(0x0028, 0x6D20, 0x6CF8, 4);
+    overallResult &= verify_angle_get_difference_step(0x0028, 0x8000, 0x7FD8, 5);
+    overallResult &= verify_angle_get_difference_step(0x00A6, 0x8000, 0x7F5A, 6);
+    overallResult &= verify_angle_get_difference_step(0x0221, 0x9F80, 0x9D5F, 7);
+    overallResult &= verify_angle_get_difference_step(0x02BC, 0xBC60, 0xB9A4, 8);
+    overallResult &= verify_angle_get_difference_step(0x050B, 0x8000, 0x7AF5, 9);
+    overallResult &= verify_angle_get_difference_step(0x050B, 0x0000, 0xFAF5, 10);
+
+    overallResult &= verify_angle_get_difference_step(0x0460, 0x360, 0xFF00, 11);
+    overallResult &= verify_angle_get_difference_step(0x0460, 0x8000, 0x7BA0, 12);
+    overallResult &= verify_angle_get_difference_step(0xFEBB, 0xAA00, 0xAB45, 13);
+    overallResult &= verify_angle_get_difference_step(0xFB87, 0x01E0, 0x0659, 14);
+    overallResult &= verify_angle_get_difference_step(0xFB87, 0xA480, 0xA8F9, 15);
+
+    if (overallResult) {
+        logging::Info("Verify_angle_get_difference: All testcases pass");
+        return true;
+    } else {
+        logging::Error("Verify_angle_get_difference: At least one testcase failed");
+    }
+
+    return false;
+}
+
+void VCalculations::UnwrapPhaseUnsigned(irr::f32& angle) {
+    while (angle < 0.0f) {
+        angle += 360.0f;
+    }
+
+    while (angle > 360.0f) {
+        angle -= 360.0f;
+    }
+}
+
+void VCalculations::UnwrapPhaseSigned(irr::f32& angle) {
+    while (angle < -180.0f) {
+        angle += 360.0f;
+    }
+
+    while (angle > 180.0f) {
+        angle -= 360.0f;
+    }
+ }
+
 irr::f32 VCalculations::angle_get_difference(irr::f32 angle1, irr::f32 angle2) {
-    return (angle2 - angle1);
+    //Important note 06.06.2026: We need to make sure that both
+    //input angles are limited inside the expected range (we need to unwrap the phase!)
+    //Otherwise the control loops inside the game (for example vehicle_colide_vectors) do
+    //all kind of random funky things, because when one of the input angles
+    //goes outside the 0.0° to 360.0° default range, the control loop starts to
+    //correct the errors into the wrong direction, and the errors actually grow over
+    //time.
+
+    //The original game implementation does not have commands here to do this, because
+    //by using fixed point arithmetic with an unit circle of 256 steps with a
+    //16R8 variable does the angle overflow automatically by design. Which is a clear
+    //disadvantage of changing to floating point arithmetic for the angle.
+    UnwrapPhaseSigned(angle1);
+    UnwrapPhaseSigned(angle2);
+
+    irr::f32 result = (angle2 - angle1);
+
+    UnwrapPhaseSigned(result);
+
+    return (result);
 }
 
 /***************************************************
@@ -1277,6 +1375,9 @@ bool VCalculations::Verify_vanilla_calculations() {
 
     //Verify arctanPlusMultiply32
     overallResult &= Verify_arctanPlusMultiply32();
+
+    //Verify angle_get_difference
+    overallResult &= Verify_angle_get_difference();
 
     if (overallResult) {
         logging::Info("Verify_vanilla_calculations: All testcases pass");
