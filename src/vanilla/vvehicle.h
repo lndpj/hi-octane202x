@@ -94,6 +94,7 @@ struct VehicleCollideControlStruct {
 struct VehicleStatsStruct {
     int16_t Behind;
     int16_t Fuel;
+    int16_t Weapons;
 
     int16_t Health;
     irr::f32 Velocity;
@@ -104,6 +105,30 @@ struct VehicleViewStruct {
     irr::f32 AngleXY;
     irr::f32 AngleZY;
     irr::f32 AngleXZ;
+};
+
+struct VehicleBoosterStruct {
+    irr::f32 InitialThrust;
+    irr::f32 BurnThrust;
+    int16_t BurnSetting;
+    uint8_t BurnTime;
+    uint8_t Burn;
+
+    //variables moved here
+    //from Thing (ThingWeapon)
+    int16_t Trigger = 0;
+    int16_t TriggerTime = 0;
+    int16_t TriggerRestrictionCount = 0;
+    int16_t Target = 0;
+
+    //variables moved here
+    //from Thing
+    int16_t Upgrade = 0;
+};
+
+struct VehicleConditionsStruct {
+    int32_t FuelUsed = 0;
+    int32_t WeaponsUsed = 0;
 };
 
 /************************
@@ -121,11 +146,13 @@ public:
     void Update(irr::f32 frameDeltaTime);
 
     void DrawDebug();
+    void TestCamera();
 
     bool KeyPressedTurnLeft = false;
     bool KeyPressedTurnRight = false;
     bool KeyPressedAccel = false;
     bool KeyPressedDeaccel = false;
+    bool KeyPressedBooster = false;
 
     irr::scene::ICameraSceneNode* mOutsideCam = nullptr;
 
@@ -136,7 +163,6 @@ private:
     Race* mRace = nullptr;
 
 public:
-
     MomentumStruct Momentum;
 
     //for player input
@@ -165,6 +191,13 @@ public:
     irr::f32 mFrictionLimit = 0.0f;
     irr::f32 mBounce = 0.0f;
     irr::f32 mMaximumZpos = 0.0f;
+
+    VehicleBoosterStruct Booster;
+    VehicleConditionsStruct Conditions;
+    VehicleViewStruct View;
+
+    irr::f32 mDeltaTimeFactor = 1.0f;
+
 private:
 
     //variables which only I use in my project
@@ -175,8 +208,6 @@ private:
     //the mesh for the Irrlicht SceneNode model
     irr::scene::IAnimatedMesh* mCraftMesh = nullptr;
     irr::scene::IMeshSceneNode* mCraftNode = nullptr;
-
-    VehicleViewStruct View;
 
     void SetupFlightModelConstants();
 
@@ -217,6 +248,8 @@ private:
 
     void UpdateSceneNode();
     void UpdateCamera();
+
+    void processWeaponBooster();
 
     void ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot);
     void ModelYaw(irr::scene::ISceneNode *node, irr::f32 rot);

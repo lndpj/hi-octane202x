@@ -31,39 +31,73 @@
 //I really want to thank aybe for giving me the opportunity to look much deeper into the original game inner workings as I was ever able before.
 //Without this support I would not have been able to hopefully advance the current project more true to the original.
 
-#ifndef VBASE_H
-#define VBASE_H
+#ifndef VCAMERA_H
+#define VCAMERA_H
 
 #include "irrlicht.h"
+#include "vbase.h"
 #include <cstdint>
+#include <vector>
 
 /************************
  * Forward declarations *
  ************************/
 
-struct MovementStruct {
+class Race;
+class VVehicle;
+class ParseCamera;
+
+struct VCameraStruct {
+    irr::core::vector3df Position;
+    irr::core::vector3df Destination;
     irr::f32 AngleXY = 0.0f;
     irr::f32 AngleZY = 0.0f;
     irr::f32 AngleXZ = 0.0f;
-    irr::f32 SpeedActual = 0.0f;
+    //irr::f32 Lens;
+    irr::f32 Distance;
+    //int16_t Follow;
+    //int16_t Zoom;
+    int16_t Static;
+    int16_t Action;
 };
 
-struct MomentumStruct {
-    irr::f32 DeltaX = 0.0f;
-    irr::f32 DeltaY = 0.0f;
-    irr::f32 AngleXY = 0.0f;
+struct VCameraWindowStruct {
+   VCameraStruct Camera;
+   VCameraStruct ChaseCamera;
+   /*irr::core::vector3df Position;
+   irr::core::vector3df Size;
+   int32_t Update;*/
 };
 
-struct ThingDataStruct {
-    irr::core::vector3df Position;
-    MovementStruct Movement;
-    irr::core::vector3df Displacement;
+class VCamera {
 
-    uint32_t AffectStatus = 0;
+private:
+    Race* mParentRace = nullptr;
 
-    bool Stationary = false;
-    int16_t Life = 1000;
-    uint8_t mTimeSlice = 0;
+    void camera_process_position(VVehicle* whichVehicle, VCameraWindowStruct& vanillaOutputCameraWindow,
+                                 irr::f32 distance, irr::f32 degrees);
+
+    //seems to be an array of 16 structs
+    //with 70 bytes size each
+    int16_t word_8011EF2C[1120];
+    int16_t word_8011EF32[1120];
+
+    VCameraWindowStruct mCameraWindow;
+    VCameraStruct mRenderCamera;
+
+    void camera_setup();
+
+public:
+    VCamera(Race* parentRace);
+    ~VCamera();
+
+    void camera_process(/*int32_t player_number*/ VVehicle* whichVehicle, int32_t force_camera_action, int32_t cameraIndex);
+
+    //sets an Irrlicht camera in a way to replicate the original games camera view
+    void SetIrrlichtCamera(irr::scene::ICameraSceneNode* whichCamera, ParseCamera* setToState);
+    void SetIrrlichtCamera(irr::scene::ICameraSceneNode* whichCamera, VCameraStruct* setToState);
+
+    uint8_t selCamera = 0;
 };
 
-#endif // VBASE_H
+#endif // VCAMERA_H

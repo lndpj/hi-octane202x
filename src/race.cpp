@@ -26,6 +26,7 @@
 #include "utils/gamedbgwnd.h"
 #include "vanilla/vcalc.h"
 #include "vanilla/vtrack.h"
+#include "vanilla/vcamera.h"
 #include "vanilla/debug/memdump.h"
 
 #include "draw/hud.h"
@@ -651,6 +652,11 @@ Race::~Race() {
         mVTrack = nullptr;
     }
 
+    if (mVCamera != nullptr) {
+        delete mVCamera;
+        mVCamera = nullptr;
+    }
+
     //now we can free the HUD
     delete Hud1Player;
 
@@ -691,6 +697,10 @@ Race::~Race() {
 
     //remove camera SceneNode
     mCamera->remove();
+
+    if (vanTestCam != nullptr) {
+        vanTestCam->remove();
+    }
 
     //TODO: ExplosionLauncher does not have
     //a deconstructor, does not clean up inside!
@@ -1965,7 +1975,7 @@ void Race::Init() {
 
         this->mVCalc->Verify_vanilla_calculations();
 
-        irr::core::vector3df testVehiclePos(-15.0f, 11.0f, 105.0f);
+        irr::core::vector3df testVehiclePos(mPlayerStartLocations.at(0));
 
         irr::core::vector3df vPos = mVCalc->IrrlichtToVanillaCoord(testVehiclePos);
         vPos.Z = mVCalc->map_floor(vPos);
@@ -1974,6 +1984,20 @@ void Race::Init() {
         mVCraft = new VVehicle(this, mVCalc->VanillaToIrrlichtCoord(vPos),
                                mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));
     }
+
+    mVCamera = new VCamera(this);
+
+    vanTestCam = mGame->mSmgr->addCameraSceneNode();
+    //Important: For this camera we need to bind Target and Rotation!
+    vanTestCam->bindTargetAndRotation(true);
+
+    //We also need to adjust the field of view so that
+    //we get the same view as in the original game
+    vanTestCam->setFOV(irr::core::PI / 2.1f);
+
+    //we need to change the near value so that we
+    //do not clip into the terrain
+    vanTestCam->setNearValue(0.1f);
 
     //this->mGame->StopTime();
   
@@ -2682,7 +2706,12 @@ void Race::HandleDebugInput() {
 
    if (mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_T)) {
       // mVCraft->Update(0.01);
-       AdvModel = true;
+     //  AdvModel = true;
+       //mVCraft->TestCamera();
+       mVCamera->selCamera++;
+       if (mVCamera->selCamera > 3) {
+           mVCamera->selCamera = 0;
+       }
    }
 
    if(mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_C)) {
@@ -2782,11 +2811,20 @@ void Race::HandleInput(irr::f32 deltaTime) {
                  }
              }
 
-             if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
-             {
-                mPlayerVec.at(0)->IsSpaceDown(true, deltaTime);
+             if (!mAddVVehicle) {
+                     if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
+                     {
+                        mPlayerVec.at(0)->IsSpaceDown(true, deltaTime);
+                     } else {
+                        mPlayerVec.at(0)->IsSpaceDown(false, deltaTime);
+                     }
              } else {
-                mPlayerVec.at(0)->IsSpaceDown(false, deltaTime);
+                 if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
+                 {
+                     mVCraft->KeyPressedBooster = true;
+                 } else {
+                     mVCraft->KeyPressedBooster = false;
+                 }
              }
 
              if(mGame->mEventReceiver->IsKeyDown(irr::KEY_LEFT)) {
@@ -3364,8 +3402,25 @@ void Race::Render() {
         //}
 
         //DebugShowAllObstaclePlayers();
+    /*    MapEntry* entry;
+
+        for (size_t x = 0; x < 256; x++) {
+            for (size_t y = 0; y < 160; y++) {
+                entry = mLevelTerrain->levelRes->pMap[x][y];
+                if (entry->mVector != 0) {
+                    mLevelTerrain->DrawOutlineSelectedCell(irr::core::vector2di(x, y), mGame->mDrawDebug->blue);
+                }
+            }
+        }*/
+
+      //  mVTrack->DrawDebugVectors();
 
     // mVCalc->DebugDraw();
+    /*if (mVTrack->collided) {
+        mGame->mDrawDebug->Draw3DLine(mVTrack->debugCol1Vec1, mVTrack->debugCol1Vec2, mGame->mDrawDebug->red);
+    } else {
+        mGame->mDrawDebug->Draw3DLine(mVTrack->debugCol1Vec1, mVTrack->debugCol1Vec2, mGame->mDrawDebug->cyan);
+    }*/
 
     if (mVCraft != nullptr) {
         //mVCraft->DrawDebug();
@@ -4490,7 +4545,8 @@ void Race::ManagePlayerCamera() {
                 hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
             }
         } else {
-            activeCam = mVCraft->mOutsideCam;
+            //activeCam = mVCraft->mOutsideCam;
+            activeCam = vanTestCam;
         }
     } else {
         //free moving camera to inspect the level/map
@@ -4845,17 +4901,15 @@ void Race::createEntity(EntityItem *p_entity,
                 //remember a line between both waypoints for debugging purposes
                 ENTWallsegmentsLine_List->push_back(line);
 
-                irr::core::vector3df vanillaPosNext = next->getCenter();
-                vanillaPosNext.X = -vanillaPosNext.X;
-                vanillaPosNext.Y = vanillaPosNext.Z;
-                vanillaPosNext.Z = 0.0f; //the game has at this point of time no height information
+                irr::core::vector3df irrPosNext = next->getCenter();
+                irr::core::vector3df vanPosNext = mVCalc->IrrlichtToVanillaCoord(irrPosNext);
+                vanPosNext.Z = 0.0f; //the game has at this point of time no height information
 
-                irr::core::vector3df vanillaPosEntity = entity.getCenter();
-                vanillaPosEntity.X = -vanillaPosEntity.X;
-                vanillaPosEntity.Y = vanillaPosEntity.Z;
-                vanillaPosEntity.Z = 0.0f;  //the game has at this point of time no height information
+                irr::core::vector3df irrPosEntity = entity.getCenter();
+                irr::core::vector3df vanPosEntity = mVCalc->IrrlichtToVanillaCoord(irrPosEntity);
+                vanPosEntity.Z = 0.0f; //the game has at this point of time no height information
 
-                mVTrack->insert_vect(vanillaPosNext, vanillaPosEntity);
+                mVTrack->insert_vect(vanPosNext, vanPosEntity);
             }
            ENTWallsegments_List->push_back(p_entity);
            break;

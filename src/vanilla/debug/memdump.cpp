@@ -16,6 +16,8 @@
 #include "structs/thinglist.h"
 #include "structs/thingvehicle.h"
 #include "structs/vvectors.h"
+#include "structs/cam.h"
+#include "structs/basicstructs.h"
 
 MemDump::MemDump(std::string dumpFile)
 {
@@ -26,6 +28,7 @@ MemDump::MemDump(std::string dumpFile)
    ThingList = new ParseThingList(this);
    ThingVehicle = new ParseThingVehicle(this);
    Vectors = new ParseVectors(this);
+   EngineCamera = new ParseCamera(this);
 }
 
 MemDump::~MemDump() {
@@ -36,6 +39,7 @@ MemDump::~MemDump() {
     delete ThingVehicle;
     delete mMemDumpData;
     delete Vectors;
+    delete EngineCamera;
 }
 
 void MemDump::ReadVectors(size_t dumpLevelStructStart) {
@@ -101,6 +105,11 @@ ParseThing* MemDump::ReturnThingFirstPlayer() {
     }
 
     return (result);
+}
+
+void MemDump::ReadEngineCamera() {
+  //this camera seems always to be located at 0x11EEF8
+  EngineCamera->Update(0x11EEF8);
 }
 
 bool MemDump::FindDataInDump(std::vector<uint8_t> searchPattern, std::vector<size_t> &atOffset) {

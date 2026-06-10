@@ -21,6 +21,7 @@
 #include "utils/gamedbgwnd.h"
 #include "draw/attribution.h"
 #include "vanilla/vvehicle.h"
+#include "vanilla/vcamera.h"
 #include "vanilla/vbase.h"
 
 void Game::StopTime() {
@@ -1287,6 +1288,10 @@ void Game::GameLoopRace(irr::f32 frameDeltaTime) {
             dbgText->setText(text2);
 
             delete[] text2;
+    }
+
+    if ((mCurrentRace->mVCamera != nullptr) && (mCurrentRace->mVCraft != nullptr)) {
+        mCurrentRace->mVCamera->camera_process(mCurrentRace->mVCraft, -1, 0);
     }
 
     mDriver->beginScene(true,true,

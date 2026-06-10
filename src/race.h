@@ -140,6 +140,7 @@ struct CloneRecording;
 class VCalculations;
 class VVehicle;
 class VTrack;
+class VCamera;
 class DbgInterface;
 
 class Race {
@@ -152,6 +153,7 @@ public:
 
     VVehicle* mVCraft = nullptr;
     VTrack* mVTrack = nullptr;
+    VCamera* mVCamera = nullptr;
     DbgInterface* mVDbgInterface = nullptr;
 
     bool ready;
@@ -332,6 +334,9 @@ public:
     bool GetPlayersDbgFlagState(irr::u8 debugFlag);
 
     bool AdvModel = false;
+
+    irr::scene::ICameraSceneNode* vanTestCam = nullptr;
+
 private:
     std::string mLevelRootPath;
     std::string mLevelName;

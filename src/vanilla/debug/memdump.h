@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string>
 #include <cstdint>
+#include "irrlicht.h"
 
 class BinaryFile;
 class DataTools;
@@ -21,6 +22,7 @@ class ParseThingList;
 class ParseThing;
 class ParseThingVehicle;
 class ParseVectors;
+class ParseCamera;
 
 class MemDump
 {
@@ -49,7 +51,8 @@ public:
     ParseThingVehicle* ThingVehicle = nullptr;
     std::vector<ParseThing*> mExistingThingsVec;
 
-
+    ParseCamera* EngineCamera = nullptr;
+    void ReadEngineCamera();
 };
 
 #endif // MEMDUMP_H
