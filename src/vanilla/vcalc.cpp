@@ -1301,11 +1301,25 @@ int16_t VCalculations::FloatToFixedPoint8D8(irr::f32 floatVal) {
     return result;
 }
 
+//Convert a float into a fixed point number (24.8 format)
+int32_t VCalculations::FloatToFixedPoint24D8(irr::f32 floatVal) {
+    int32_t result = (int32_t)(floatVal * 256.0f);
+    return result;
+}
+
 //Convert a fixed point number (8.8 format) to a float
 irr::f32 VCalculations::FixedPointToFloat8D8(int16_t fixedPntVal) {
     int8_t intPart = static_cast<int8_t>((fixedPntVal >> 8) & 0x00FF);
     float result = (float)(intPart);
     result += (fixedPntVal & 0x00FF) / 256.0f;
+    return result;
+}
+
+//Convert a fixed point number (24.8 format) to a float
+irr::f32 VCalculations::FixedPointToFloat24D8(int32_t fixedPntVal) {
+    int32_t intPart = static_cast<int32_t>(fixedPntVal & 0xFFFFFF00) >> 8;
+    float result = (float)(intPart);
+    result += (float)((fixedPntVal & 0x000000FF)) / 256.0f;
     return result;
 }
 

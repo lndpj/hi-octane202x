@@ -62,13 +62,13 @@ void VTrack::DebugDrawTrackColVectStruct(TrackColVectStruct* whichStruct) {
 
     bool drawAngleTest = false;
 
-    vanillaPos1.X = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos1X));
-    vanillaPos1.Y = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos1Y));
-    vanillaPos1.Z = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos1Z));
+    vanillaPos1.X = mParentRace->mVCalc->FixedPointToFloat24D8(static_cast<int32_t>(whichStruct->pos1X));
+    vanillaPos1.Y = mParentRace->mVCalc->FixedPointToFloat24D8(static_cast<int32_t>(whichStruct->pos1Y));
+    vanillaPos1.Z = mParentRace->mVCalc->FixedPointToFloat24D8(static_cast<int32_t>(whichStruct->pos1Z));
 
-    vanillaPos2.X = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos2X));
-    vanillaPos2.Y = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos2Y));
-    vanillaPos2.Z = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(whichStruct->pos2Z));
+    vanillaPos2.X = mParentRace->mVCalc->FixedPointToFloat24D8(static_cast<int32_t>(whichStruct->pos2X));
+    vanillaPos2.Y = mParentRace->mVCalc->FixedPointToFloat24D8(static_cast<int32_t>(whichStruct->pos2Y));
+    vanillaPos2.Z = mParentRace->mVCalc->FixedPointToFloat24D8(static_cast<int32_t>(whichStruct->pos2Z));
 
     if (drawAngleTest) {
         vanillaMidPoint = (vanillaPos1 + vanillaPos2) * irr::core::vector3df(0.5f, 0.5f, 0.5f);
@@ -134,13 +134,13 @@ void VTrack::add_collision_to_single_mapwho(irr::f32 x, irr::f32 y) {
 
 void VTrack::insert_vect(irr::core::vector3df position1, irr::core::vector3df position2) {
    //better use fixed point arithmetic here
-   int32_t pos1X = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(position1.X));
-   int32_t pos1Y = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(position1.Y));
-   int32_t pos1Z = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(position1.Z));
+   int32_t pos1X = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(position1.X));
+   int32_t pos1Y = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(position1.Y));
+   int32_t pos1Z = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(position1.Z));
 
-   int32_t pos2X = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(position2.X));
-   int32_t pos2Y = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(position2.Y));
-   int32_t pos2Z = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(position2.Z));
+   int32_t pos2X = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(position2.X));
+   int32_t pos2Y = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(position2.Y));
+   int32_t pos2Z = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(position2.Z));
 
    int32_t diffX = (pos2X - pos1X);
    int32_t diffY = (pos2Y - pos1Y);
@@ -264,8 +264,8 @@ void VTrack::insert_vect(irr::core::vector3df position1, irr::core::vector3df po
             v27 += v19;
             v28 += v23;
 
-            floatXPos = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(v29));
-            floatYPos = mParentRace->mVCalc->FixedPointToFloat8D8(static_cast<int16_t>(v30));
+            floatXPos = mParentRace->mVCalc->FixedPointToFloat24D8(v29);
+            floatYPos = mParentRace->mVCalc->FixedPointToFloat24D8(v30);
 
             add_collision_to_single_mapwho(floatXPos, floatYPos);
         }
@@ -314,11 +314,11 @@ uint8_t VTrack::do_move_colide(irr::f32 x1Float, irr::f32 y1Float, irr::f32 x2Fl
     TrackColVectStruct* v11;
 
     //better do this in fixed point arithmetic
-    int32_t x1 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(x1Float));
-    int32_t y1 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(y1Float));
+    int32_t x1 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(x1Float));
+    int32_t y1 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(y1Float));
 
-    int32_t x2 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(x2Float));
-    int32_t y2 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint8D8(y2Float));
+    int32_t x2 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(x2Float));
+    int32_t y2 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(y2Float));
 
     int16_t Vector = me->mVector;
     v6 = Vector;

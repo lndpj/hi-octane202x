@@ -184,8 +184,6 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
 
         UpdateSceneNode();
         UpdateCoordinates();
-
-        UpdateCamera();
     }
 }
 

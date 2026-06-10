@@ -81,10 +81,15 @@ public:
     //Convert a float into a fixed point number (16.16 format)
     int32_t FloatToFixedPoint16D16(irr::f32 floatVal);
 
+    //Convert a float into a fixed point number (24.8 format)
+    int32_t FloatToFixedPoint24D8(irr::f32 floatVal);
+
     //Convert a fixed point number (8.8 format) to a float
     irr::f32 FixedPointToFloat8D8(int16_t fixedPntVal);
     //Convert a fixed point number (16.16 format) to a float
     irr::f32 FixedPointToFloat16D16(int32_t fixedPntVal);
+
+    irr::f32 FixedPointToFloat24D8(int32_t fixedPntVal);
 
     //original "raw" angles (for example in thing->Movement.Angle.ZY, is struct Angle)
     //contain the absolute angle in current steps for a unit circle of 65536 steps
