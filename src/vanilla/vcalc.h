@@ -236,6 +236,11 @@ public:
                                  irr::f32 angleZY, irr::f32 speed);
 
     irr::f32 distance_get_xyz(irr::core::vector3df position1, irr::core::vector3df position2);
+    irr::f32 distance_get_xy(irr::core::vector3df position1, irr::core::vector3df position2);
+
+    irr::f32 distance_get_rough_xy(irr::core::vector3df position1, irr::core::vector3df position2);
+    void distance_get_xy_coords(irr::core::vector3df position1, irr::core::vector3df position2,
+                                irr::core::vector3df& distance);
 
     //Helper function for function verification
     bool Verify_arctanPlusMultiply32(int16_t xVal, int16_t yVal, int16_t expResult,
@@ -259,6 +264,8 @@ public:
 
     void UnwrapPhaseUnsigned(irr::f32& angle);
     void UnwrapPhaseSigned(irr::f32& angle);
+
+    irr::f32 point_from_line(irr::f32 x1, irr::f32 y1, irr::f32 dx, irr::f32 dy, irr::f32 px, irr::f32 py);
 };
 
 #endif // VCALC_H

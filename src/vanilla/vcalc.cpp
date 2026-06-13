@@ -1100,6 +1100,28 @@ irr::f32 VCalculations::distance_get_xyz(irr::core::vector3df position1, irr::co
     return ((irrCoordSysCoord2-irrCoordSysCoord1).getLength());
 }
 
+irr::f32 VCalculations::distance_get_xy(irr::core::vector3df position1, irr::core::vector3df position2) {
+    irr::f32 v2 = (position2.Y - position1.Y);
+    irr::f32 v1 = (position2.X - position1.X);
+    return (sqrt(v1 * v1 + v2 * v2));
+}
+
+irr::f32 VCalculations::distance_get_rough_xy(irr::core::vector3df position1, irr::core::vector3df position2) {
+    irr::f32 result = fabs(position2.X - position1.X);
+    irr::f32 v5 = fabs(position2.Y - position1.Y);
+
+    if (result < v5)
+        return v5;
+
+    return result;
+}
+
+void VCalculations::distance_get_xy_coords(irr::core::vector3df position1, irr::core::vector3df position2,
+                                           irr::core::vector3df& distance) {
+    distance.X = fabs(position2.X - position1.X);
+    distance.Y = fabs(position2.Y - position1.Y);
+}
+
 /***************************************************
  * Angle calculation stuff                         *
  ***************************************************/
@@ -1289,6 +1311,19 @@ irr::f32 VCalculations::angle_get_difference(irr::f32 angle1, irr::f32 angle2) {
     UnwrapPhaseSigned(result);
 
     return (result);
+}
+
+/***************************************************
+ * Other calculation Routines                      *
+ ***************************************************/
+
+irr::f32 VCalculations::point_from_line(irr::f32 x1, irr::f32 y1, irr::f32 dx,
+                                        irr::f32 dy, irr::f32 px, irr::f32 py) {
+  irr::f32 v8 = dx * y1 - dy * x1;
+  irr::f32 v9 = sqrt(dy * dy + ((-dx) * (-dx))) + 0.00390625f;
+  irr::f32 v10 = fabs(dy * px + (-dx) * py + v8);
+
+  return (v10 / v9);
 }
 
 /***************************************************

@@ -67,13 +67,19 @@ struct VehicleControlFlagsStruct {
     bool HealthDeath;
     bool FuelDeath;
     bool Reposition;
+    //pad1 and pad2 seems to be used by
+    //autopilot
+    bool pad1;
+    bool pad2;
 };
 
 struct VehicleFunctionFlagsStruct {
     bool Booster;
     bool Brake;
     bool BarrelRoll;
+    bool Pad4;  //seems to be used for computer player control
     bool Pad6;  //seems to be used during collision detection with vector collision
+    bool Pad9;  //seems to be used for computer player control
 };
 
 struct VehicleCollideControlStruct {
@@ -129,6 +135,17 @@ struct VehicleBoosterStruct {
 struct VehicleConditionsStruct {
     int32_t FuelUsed = 0;
     int32_t WeaponsUsed = 0;
+};
+
+struct VehicleComputerPlayerStruct {
+    int16_t EnemyIndex;
+    int16_t Count1;
+    int16_t Count2;
+    int16_t Count3;
+    uint8_t Skill;
+    uint8_t Param2;
+    uint8_t Param3;
+    uint8_t Param4;
 };
 
 /************************
@@ -198,7 +215,12 @@ public:
 
     irr::f32 mDeltaTimeFactor = 1.0f;
 
+    uint16_t dbgTrackCurrWayPoint = 0;
+
 private:
+    uint32_t ControlOrigin = 1; //activates the human player
+    uint16_t LastWayPoint = 0;
+    uint16_t CurrentWaypoint = 0;
 
     //variables which only I use in my project
     irr::f32 mAbsTimeIntegrator = 0.0f;
@@ -211,13 +233,21 @@ private:
 
     void SetupFlightModelConstants();
 
+    VehicleComputerPlayerStruct ComputerPlayer;
+    void vehicle_setup_computer_character();
+
+    void vehicle_control();
+    void vehicle_control_from_player();
+    uint8_t vehicle_control_from_autopilot();
+    uint8_t vehicle_set_autopilot_on();
+    uint8_t vehicle_set_autopilot_off();
+
     void vehicle_get_track_friction();
     void vehicle_calculate_angle();
     void vehicle_calculate_thrust(irr::core::vector3df& delta);
     void vehicle_calculate_momentum(irr::core::vector3df& delta);
     void vehicle_calculate_movement_delta(irr::core::vector3df& delta);
     void vehicle_move_altitude(irr::core::vector3df& delta);
-    void vehicle_control_from_player();
     void vehicle_move_tilt(irr::core::vector3df& delta);
     void vehicle_move_roll(irr::core::vector3df& delta);
     void vehicle_sensor_point_projection(irr::core::vector3df& delta);

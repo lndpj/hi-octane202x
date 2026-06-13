@@ -315,8 +315,6 @@ int8_t EntityItem::getRawType() {
     return mRawType;
 }
 
-//Only used for writing debugging table file
-//do not use otherwise in higher level code!
 int8_t EntityItem::getRawSubType() {
     return mRawSubType;
 }
@@ -375,6 +373,7 @@ Entity::EntityType EntityItem::identify() {
     if (mRawType == 9 && mRawSubType == 2) return(Entity::EntityType::WaypointFuel);
     if (mRawType == 9 && mRawSubType == 3) return(Entity::EntityType::WaypointAmmo);
     if (mRawType == 9 && mRawSubType == 4) return(Entity::EntityType::WaypointShield);
+    if (mRawType == 9 && mRawSubType == 5) return(Entity::EntityType::WaypointUnknownVal5);
     if (mRawType == 9 && mRawSubType == 6) return(Entity::EntityType::WaypointShortcut);
     if (mRawType == 9 && mRawSubType == 7) return(Entity::EntityType::WaypointSpecial1);
     if (mRawType == 9 && mRawSubType == 8) return(Entity::EntityType::WaypointSpecial2);
@@ -522,6 +521,10 @@ void EntityItem::revIdentify(Entity::EntityType newEntityType, int8_t &newType, 
 
        case Entity::EntityType::WaypointShield: {
                newType = 9; newSubType = 4; break;
+           }
+
+       case Entity::EntityType::WaypointUnknownVal5: {
+               newType = 9; newSubType = 5; break;
            }
 
        case Entity::EntityType::WaypointShortcut: {

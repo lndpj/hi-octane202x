@@ -611,6 +611,7 @@ WayPointLinkInfoStruct* CpuPlayer::CpPlayerWayPointLinkSelectionLogic(std::vecto
             case Entity::EntityType::WaypointSpecial1:
             case Entity::EntityType::WaypointSpecial2:
             case Entity::EntityType::WaypointSpecial3:
+            case Entity::EntityType::WaypointUnknownVal5:
             case Entity::EntityType::WaypointShortcut: {
                 linksNothingSpecial.push_back(*it);
                 break;

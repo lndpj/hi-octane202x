@@ -487,6 +487,505 @@ uint16_t VTrack::track_vector_collide(irr::core::vector3df position1, irr::core:
     return v9;
 }
 
+int8_t VTrack::track_initialise_waypoint(uint16_t wp_type, irr::core::vector3df pos1,
+                                         irr::core::vector3df pos2) {
+    size_t v5;
+    uint16_t v12;
+    uint16_t v15;
+    size_t v10;
+    uint16_t nextWaypoint;
+
+    size_t v17;
+    uint16_t v20;
+    uint16_t v21;
+    size_t v18;
+    uint16_t v22;
+    uint16_t v25;
+    uint16_t v28;
+    uint16_t peer;
+    uint16_t v30;
+    uint16_t v31;
+    uint16_t v33;
+    uint16_t v38;
+    uint16_t v36;
+    uint16_t v37;
+    uint16_t v35;
+    uint16_t v42;
+    uint16_t v45;
+    uint16_t v46;
+    uint16_t v47;
+
+    uint16_t pointType;
+    int8_t result;
+
+    bool v39;
+
+    v5 = 1;
+
+    if (NextWaypoint <= 1) {
+track_initialise_waypoint_LABEL_6:
+        v12 = 0;
+    } else {
+        v10 = 1;
+        while (1) {
+            if (fabs(TrackWaypointList[v10].Position.X - pos2.X) < 0.00390625) {
+               v12 = v5;
+               if (fabs(TrackWaypointList[v10].Position.Y - pos2.Y) < 0.00390625) {
+                   break;
+               }
+            }
+            ++v5;
+            v10 = v5;
+            if (v5 >= NextWaypoint) {
+                goto track_initialise_waypoint_LABEL_6;
+            }
+        }
+    }
+
+    if (!v12) {
+        nextWaypoint = NextWaypoint;
+        //can we store one additional waypoint?
+        if (nextWaypoint < 0xC8) {
+            NextWaypoint = nextWaypoint + 1;
+            v12 = nextWaypoint;
+        }
+        if (!v12) {
+            return 0;
+        }
+
+        v15 = v12;
+        TrackWaypointList[v12].Position = pos2;
+        TrackWaypointList[v12].Position.Z =
+                mParentRace->mVCalc->map_floor(TrackWaypointList[v12].Position);
+        TrackWaypointList[v12].Child = 0;
+        TrackWaypointList[v12].PointType = wp_type;
+        TrackWaypointList[v12].Peer = 0;
+    }
+
+    v17 = 1;
+
+    if (NextWaypoint <= 1) {
+track_initialise_waypoint_LABEL_18:
+        v20 = 0;
+    } else {
+        v18 = 1;
+        while (1) {
+            if (fabs(TrackWaypointList[v18].Position.X - pos1.X) < 0.00390625) {
+               v20 = v17;
+               if (fabs(TrackWaypointList[v18].Position.Y - pos1.Y) < 0.00390625) {
+                   break;
+               }
+            }
+            ++v17;
+            v18 = v17;
+            if (v17 >= NextWaypoint) {
+                goto track_initialise_waypoint_LABEL_18;
+            }
+        }
+    }
+
+    v21 = v20;
+    if (v20) {
+        TrackWaypointList[v21].Position = pos1;
+        if (TrackWaypointList[v21].Child) {
+            return 0;
+        }
+
+        TrackWaypointList[v21].Child = v12;
+        return 1;
+    }
+
+    v22 = NextWaypoint;
+    //can we store one additional waypoint?
+    if (v22 < 200) {
+        NextWaypoint = v22 + 1;
+        v20 = v22;
+    }
+
+    if (!v20) {
+        return 0;
+    }
+
+    TrackWaypointList[v20].Position = pos1;
+    TrackWaypointList[v20].Position.Z =
+            mParentRace->mVCalc->map_floor(TrackWaypointList[v20].Position);
+    TrackWaypointList[v20].Child = v12;
+    TrackWaypointList[v20].PointType = wp_type;
+    TrackWaypointList[v20].Peer = 0;
+
+    if (wp_type >= 2) {
+        v25 = 1;
+        if ((wp_type < 5) || (wp_type == 6)) {
+            if (NextWaypoint > 1) {
+                v28 = 1;
+                while (1) {
+                   if (( v25 != v20) &&
+                      (mParentRace->mVCalc->distance_get_rough_xy(TrackWaypointList[v20].Position,
+                                                 TrackWaypointList[v28].Position) < 1.953125f)) {
+                       peer = TrackWaypointList[v20].Peer;
+                       v30 = 1;
+                       if (TrackWaypointList[v20].Peer) {
+                          do {
+                              if (peer == v25)  {
+                                  v30 = 0;
+                              }
+                              peer = TrackWaypointList[peer].Peer;
+                           } while (peer);
+                       }
+                       v31 = v25;
+                       if (v30) {
+                           goto track_initialise_waypoint_LABEL_63;
+                       }
+                   }
+                   ++v25;
+                   v28++;
+                   if (v25 >= NextWaypoint) {
+                       v31 = 0;
+                       goto track_initialise_waypoint_LABEL_63;
+                   }
+                }
+            }
+
+            goto track_initialise_waypoint_LABEL_62;
+        }
+    }
+
+    v33 = 1;
+    if (NextWaypoint <= 1) {
+track_initialise_waypoint_LABEL_47:
+        v38 = 0;
+    } else {
+        v35 = 1;
+        while (1) {
+           if (( v33 != v20) &&
+              (mParentRace->mVCalc->distance_get_rough_xy(TrackWaypointList[v20].Position,
+                                         TrackWaypointList[v35].Position) < 1.953125f)) {
+               v36 = TrackWaypointList[v20].Peer;
+               v37 = 1;
+               if (TrackWaypointList[v20].Peer) {
+                  do {
+                      if (v36 == v33)  {
+                          v37 = 0;
+                      }
+                      v36 = TrackWaypointList[v36].Peer;
+                   } while (v36);
+               }
+               v38 = v33;
+               if (v37) {
+                   break;
+               }
+           }
+           ++v33;
+           v35++;
+           if (v33 >= NextWaypoint) {
+               goto track_initialise_waypoint_LABEL_47;
+           }
+        }
+    }
+
+    v39 = (v38 == 0);
+    if (v39) {
+        return 1;
+    }
+
+    pointType = TrackWaypointList[v38].PointType;
+    result = 1;
+
+    if (pointType >= 2) {
+       v42 = 1;
+       if ((pointType < 5) || (result = 1, pointType == 6)) {
+           if (NextWaypoint > 1) {
+               v45 = 1;
+               while (1) {
+                  if (( v42 != v20) &&
+                     (mParentRace->mVCalc->distance_get_rough_xy(TrackWaypointList[v20].Position,
+                                                TrackWaypointList[v45].Position) < 1.953125f)) {
+                      v46 = TrackWaypointList[v20].Peer;
+                      v47 = 1;
+                      if (TrackWaypointList[v20].Peer) {
+                         do {
+                             if (v46 == v42)  {
+                                 v47 = 0;
+                             }
+                             v46 = TrackWaypointList[v46].Peer;
+                          } while (v46);
+                      }
+                      v31 = v42;
+                      if (v47) {
+                          break;
+                      }
+                  }
+                  ++v42;
+                  v45++;
+                  if (v42 >= NextWaypoint) {
+                      goto track_initialise_waypoint_LABEL_62;
+                  }
+               }
+track_initialise_waypoint_LABEL_63:
+        if (v31) {
+            TrackWaypointList[v20].Peer = TrackWaypointList[v31].Peer;
+            TrackWaypointList[v31].Peer = v20;
+            return 1;
+        }
+        return 1;
+    }
+track_initialise_waypoint_LABEL_62:
+           v31 = 0;
+           goto track_initialise_waypoint_LABEL_63;
+    }
+  }
+
+  return result;
+}
+
+//The original function takes a pointer to a thing, and uses its Position inside
+//I want to use a coordinate instead as the input parameter, because I do not
+//really have things yet
+//Returns the index into the TrackWayPointList array of the entry that
+//Was found as the result. Returns value 0 if no correct entry was found
+uint16_t VTrack::track_waypoint_absolute_nearest(irr::core::vector3df inputPosition) {
+    uint16_t v2 = 0;
+    uint16_t v3 = 1;
+    uint16_t v5;
+
+    irr::f32 currMinVal;
+    bool firstRunDone = false;
+    irr::f32 xy;
+
+    if (NextWaypoint > 1) {
+        v5 = 1;
+        do {
+            if (TrackWaypointList[v3].Child) {
+                xy = mParentRace->mVCalc->distance_get_xy(TrackWaypointList[v5].Position, inputPosition);
+                if (!firstRunDone) {
+                    currMinVal = xy;
+                    v2 = v3;
+                    firstRunDone = true;
+                } else {
+                    if (xy < currMinVal) {
+                        currMinVal = xy;
+                        v2 = v3;
+                    }
+                }
+        }
+           ++v3;
+           v5++;
+      } while (v3 < NextWaypoint);
+    }
+
+    return v2;
+}
+
+irr::f32 VTrack::track_waypoint_distance(irr::core::vector3df position, uint16_t waypointIdx) {
+    return mParentRace->mVCalc->distance_get_rough_xy(position, TrackWaypointList[waypointIdx].Position);
+}
+
+//The original function takes a pointer to a thing, and uses its Position inside
+//I want to use a coordinate instead as the input parameter, because I do not
+//really have things yet
+//Returns the index into the TrackWayPointList array of the entry that
+//Was found as the result. Returns value 0 if no correct entry was found
+uint16_t VTrack::track_waypoint_nearest(irr::core::vector3df inputPosition) {
+    uint16_t Child = 0;
+    uint16_t result;
+    uint16_t v3 = 1;
+    uint16_t v5;
+    uint16_t v12;
+    uint16_t v13;
+    irr::f32 v10;
+    irr::f32 v14;
+
+    bool firstRunDone = false;
+    irr::f32 currMinVal;
+    irr::f32 xy;
+
+    if (NextWaypoint > 1) {
+        v5 = 1;
+        do {
+            if (TrackWaypointList[v3].Child) {
+              xy = mParentRace->mVCalc->distance_get_xy(TrackWaypointList[v5].Position,
+                                                    TrackWaypointList[TrackWaypointList[v3].Child].Position);
+
+              if ((mParentRace->mVCalc->distance_get_xy(TrackWaypointList[v5].Position, inputPosition) < xy)
+                    && (mParentRace->mVCalc->distance_get_xy(TrackWaypointList[TrackWaypointList[v3].Child].Position,
+                        inputPosition) < xy)) {
+                  v10 = mParentRace->mVCalc->point_from_line(
+                              TrackWaypointList[v3].Position.X,
+                              TrackWaypointList[v3].Position.Y,
+                              TrackWaypointList[TrackWaypointList[v3].Child].Position.X - TrackWaypointList[v3].Position.X,
+                              TrackWaypointList[TrackWaypointList[v3].Child].Position.Y - TrackWaypointList[v3].Position.Y,
+                              inputPosition.X,
+                              inputPosition.Y
+                              );
+                  if (!firstRunDone) {
+                      currMinVal = v10;
+                      Child = TrackWaypointList[v3].Child;
+                      firstRunDone = true;
+                  } else {
+                      if (v10 < currMinVal) {
+                          currMinVal = v10;
+                          Child = TrackWaypointList[v3].Child;
+                      }
+                  }
+              }
+            }
+
+            v3++;
+            v5++;
+        } while (v3 < NextWaypoint);
+    }
+
+    result = Child;
+
+    if (!Child) {
+       v12 = 1;
+       result = 0;
+       if (NextWaypoint > 1) {
+           v13 = 1;
+           do {
+               if (TrackWaypointList[v12].Child) {
+                 v14 = mParentRace->mVCalc->distance_get_xy(TrackWaypointList[v13].Position, inputPosition);
+                 if (!firstRunDone) {
+                     currMinVal = v14;
+                     Child = v12;
+                 } else {
+                     if (v14 < currMinVal) {
+                         currMinVal = v14;
+                         Child = v12;
+                     }
+                 }
+               }
+               ++v12;
+               v13++;
+           } while (v12 < NextWaypoint);
+           return Child;
+       }
+    }
+
+    return result;
+}
+
+uint16_t VTrack::track_waypoint_junction_exists(uint16_t point, uint16_t wp_type) {
+    uint16_t peer;
+    uint16_t result;
+    uint16_t v3;
+    bool v5;
+
+    if (!TrackWaypointList[point].Peer) {
+        return point;
+    }
+
+    peer = TrackWaypointList[point].Peer;
+    v3 = peer;
+    while (1) {
+         v5 = (TrackWaypointList[v3].PointType == wp_type);
+         result = peer;
+         if (v5) {
+             break;
+         }
+         peer = TrackWaypointList[v3].Peer;
+         if (!TrackWaypointList[v3].Peer) {
+             return point;
+         }
+         v3 = peer;
+    }
+
+    return result;
+}
+
+//First function input parameter is the index into the TrackWaypointList, which
+//is the waypoint to investigate.
+//Returns the index into the TrackWayPointList array of the entry that
+//was found. Returns value 0 if no result was found
+uint16_t VTrack::track_waypoint_junction(uint16_t point) {
+  uint16_t v1 = 1;
+  uint16_t v3;
+  uint16_t v6;
+  uint16_t idx;
+  uint16_t peer;
+  uint16_t peer2;
+  uint16_t result;
+
+  if (NextWaypoint <= 1) {
+      return 0;
+  }
+
+  v3 = point;
+  for (idx = 1; ; idx += 1) {
+      if ((v1 != point) && (mParentRace->mVCalc->distance_get_rough_xy(
+                  TrackWaypointList[v3].Position, TrackWaypointList[idx].Position) < 1.953125f)) {
+          peer = TrackWaypointList[v3].Peer;
+          v6 = 1;
+          if (TrackWaypointList[v3].Peer) {
+              do {
+                  if (peer == v1) {
+                      v6 = 0;
+                  }
+                  peer2 = peer;
+                  peer = TrackWaypointList[peer].Peer;
+              } while (TrackWaypointList[peer2].Peer);
+          }
+          result = v1;
+          if (v6) {
+              break;
+          }
+      }
+
+      if (++v1 >= NextWaypoint) {
+         return 0;
+      }
+  }
+
+  return result;
+}
+
+void VTrack::track_waypoint_position_set(irr::core::vector3df& position, uint16_t waypoint) {
+    position = TrackWaypointList[waypoint].Position;
+}
+
+uint16_t VTrack::track_waypoint_type(uint16_t waypoint) {
+    return TrackWaypointList[waypoint].PointType;
+}
+
+uint16_t VTrack::track_waypoint_child(uint16_t waypoint) {
+    return TrackWaypointList[waypoint].Child;
+}
+
+//The original function takes a pointer to a thing, and uses its Position and
+//Colide.Size.Xpos and Colide.Side.Ypos inside
+//I want to use a coordinate instead and two floats for Size as the input parameter,
+//because I do not really have things yet
+//Returns the index into the TrackWayPointList array of the entry that
+//Was found as the result. Returns value 0 if no correct entry was found
+uint16_t VTrack::track_waypoint_colide_area(irr::core::vector3df position, irr::f32 colideSizeX,
+                                    irr::f32 colideSizeY) {
+    uint16_t v1 = 1;
+    uint16_t result;
+    irr::core::vector3df distance;
+
+    if (NextWaypoint <= 1) {
+        return 0;
+    }
+
+    while(1) {
+        if (TrackWaypointList[v1].Child) {
+            mParentRace->mVCalc->distance_get_xy_coords(position,
+                                        TrackWaypointList[v1].Position, distance);
+            if (colideSizeX >= distance.X) {
+                result = v1;
+                if (colideSizeY >= distance.Y) {
+                    break;
+                }
+            }
+        }
+        if (++v1 >= NextWaypoint) {
+            return 0;
+        }
+    }
+
+    return result;
+}
+
 VTrack::~VTrack() {
 }
 

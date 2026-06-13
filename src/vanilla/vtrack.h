@@ -67,6 +67,13 @@ struct TrackColVectListStruct {
     int16_t NextColList;
 };
 
+struct VanillaWaypointStruct {
+    irr::core::vector3df Position;
+    uint16_t PointType;
+    uint16_t Peer;
+    uint16_t Child;
+};
+
 class VTrack {
 
 private:
@@ -82,6 +89,8 @@ public:
     VTrack(Race* parentRace);
     ~VTrack();
 
+    //The following variables and methods below are for collision detection
+    //with the "wallsegment lines"
     void DrawDebugVectors();
     void DrawDbgOutput(std::vector<irr::core::line3df>& dbgOutput, ColorStruct* color);
 
@@ -91,13 +100,63 @@ public:
     int16_t NextVectsList = 1;
 
     TrackColVectStruct ColVects[250];
-    TrackColVectListStruct ColVectsList[10000];
+    TrackColVectListStruct ColVectsList[10000];    
 
     int32_t TrackCollisionVectorX;
     int32_t TrackCollisionVectorY;
 
     void insert_vect(irr::core::vector3df position1, irr::core::vector3df position2);
     uint16_t track_vector_collide(irr::core::vector3df position1, irr::core::vector3df position2);
+
+    //The following variables and methods below are for pathfinding
+    VanillaWaypointStruct TrackWaypointList[200];
+    uint16_t NextWaypoint = 1;
+
+    int8_t track_initialise_waypoint(uint16_t wp_type, irr::core::vector3df pos1,
+                                     irr::core::vector3df pos2);
+
+    //The original function takes a pointer to a thing, and uses its Position inside
+    //I want to use a coordinate instead as the input parameter, because I do not
+    //really have things yet
+    //Returns the index into the TrackWayPointList array of the entry that
+    //Was found as the result. Returns value 0 if no correct entry was found
+    uint16_t track_waypoint_absolute_nearest(irr::core::vector3df inputPosition);
+
+    irr::f32 track_waypoint_distance(irr::core::vector3df position, uint16_t waypointIdx);
+
+    //The original function takes a pointer to a thing, and uses its Position inside
+    //I want to use a coordinate instead as the input parameter, because I do not
+    //really have things yet
+    //Returns the index into the TrackWayPointList array of the entry that
+    //Was found as the result. Returns value 0 if no correct entry was found
+    uint16_t track_waypoint_nearest(irr::core::vector3df inputPosition);
+
+    //First function input parameter is the index into the TrackWaypointList, which
+    //is the waypoint to investigate.
+    //Returns the index into the TrackWayPointList array of the entry that
+    //was found
+    uint16_t track_waypoint_junction_exists(uint16_t point, uint16_t wp_type);
+
+    //First function input parameter is the index into the TrackWaypointList, which
+    //is the waypoint to investigate.
+    //Returns the index into the TrackWayPointList array of the entry that
+    //was found. Returns value 0 if no result was found
+    uint16_t track_waypoint_junction(uint16_t point);
+
+    void track_waypoint_position_set(irr::core::vector3df& position, uint16_t waypoint);
+
+    uint16_t track_waypoint_type(uint16_t waypoint);
+    uint16_t track_waypoint_child(uint16_t waypoint);
+
+    //The original function takes a pointer to a thing, and uses its Position and
+    //Colide.Size.Xpos and Colide.Side.Ypos inside
+    //I want to use a coordinate instead and two floats for Size as the input parameter,
+    //because I do not really have things yet
+    //Returns the index into the TrackWayPointList array of the entry that
+    //Was found as the result. Returns value 0 if no correct entry was found
+    uint16_t track_waypoint_colide_area(irr::core::vector3df position, irr::f32 colideSizeX,
+                                        irr::f32 colideSizeY);
+
 };
 
 #endif // VTRACK_H

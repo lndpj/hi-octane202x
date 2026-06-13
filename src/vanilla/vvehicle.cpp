@@ -151,7 +151,7 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         //Playstation 1 emulator executes this vehicle update loop average every 1721634 CPU cycles
         //CPU clocks at 33.8688 MHz, which means lets run this loop every ~50.83 ms
 
-        vehicle_control_from_player();
+        vehicle_control();
 
        /* mRace->mVDbgInterface->Init(std::string("coll.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
         ParseThing* thing = mRace->mVDbgInterface->newDump->ReturnThingFirstPlayer();
@@ -184,6 +184,8 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
 
         UpdateSceneNode();
         UpdateCoordinates();
+
+        dbgTrackCurrWayPoint = mRace->mVTrack->track_waypoint_nearest(ThingData.Position);
     }
 }
 
@@ -261,6 +263,12 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
 
    SetupFlightModelConstants();
 
+   //if computer player
+   if (ControlOrigin == 8) {
+       ComputerPlayer.EnemyIndex = 1;
+       ComputerPlayer.Skill = 90;
+   }
+
    irr::core::vector3df vanPos = mRace->mVCalc->IrrlichtToVanillaCoord(NewPosition);
    irr::f32 terrHeight = mRace->mVCalc->map_altitude_column_and_floor(vanPos);
    vanPos.Z = terrHeight + 0.5f;
@@ -291,18 +299,31 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    FlightModel.Flag.HealthDeath = false;
    FlightModel.Flag.FuelDeath = false;
    FlightModel.Flag.Reposition = false;
+   FlightModel.Flag.pad1 = false;
+   FlightModel.Flag.pad2 = false;
 
+   FlightModel.FunctionFlag.Pad4 = false;
    FlightModel.FunctionFlag.Pad6 = false;
+   FlightModel.FunctionFlag.Pad9 = false;
 
    FlightModel.FunctionFlag.Brake = true;
    FlightModel.FunctionFlag.Booster = true;
    FlightModel.FunctionFlag.BarrelRoll = true;
+
+   ComputerPlayer.Count1 = 0;
+   ComputerPlayer.Count2 = 0;
+   ComputerPlayer.Count3 = 0;
+   ComputerPlayer.Param2 = 0;
+   ComputerPlayer.Param3 = 0;
+   ComputerPlayer.Param4 = 0;
 
    Stats.Health = 10000;
    Stats.Fuel = 10000;
    Stats.Weapons = 10000;
 
    ThingData.AffectStatus = 0;
+
+   vehicle_setup_computer_character();
 
    mCraftMesh = mRace->mGame->mSmgr->getMesh(irr::io::path("extract/models/car0-0.obj"));
    mCraftNode = mRace->mGame->mSmgr->addMeshSceneNode(mCraftMesh);
@@ -1085,6 +1106,309 @@ vehicle_control_from_player_LABEL_28:
             ++Booster.Trigger;
         }
     }
+}
+
+uint8_t VVehicle::vehicle_control_from_autopilot() {
+    irr::f32 velocity;
+    irr::f32 decisionDistance;
+    uint16_t v11;
+    uint16_t v17;
+    uint16_t currentWaypoint;
+    irr::f32 v19;
+    int32_t v19Fixed;
+    uint32_t v28;
+    irr::f32 v40;
+    irr::f32 v45;
+    irr::f32 v46;
+    irr::f32 v47;
+    irr::f32 xy;
+    irr::f32 difference;
+    uint8_t result;
+    uint16_t v21;
+
+    irr::core::vector3df position;
+
+    //TODO: Add vehicle_check_vehicle_movement_status later;
+
+    result = 1;
+
+    //If there is no current waypoint
+    //make sure to exit
+    if (!CurrentWaypoint) {
+        return result;
+    }
+
+    velocity = Stats.Velocity;
+    decisionDistance = 3.0f;
+
+    if (velocity >= 0.1953125f) {
+      if (velocity >= 0.390625f) {
+          decisionDistance = 6.0f;
+          if (velocity < 0.5859375f) {
+             decisionDistance = 5.0f;
+          }
+      } else {
+          decisionDistance = 4.0f;
+      }
+    }
+
+    //are we close enough to the current waypoint?
+    if (mRace->mVTrack->track_waypoint_distance(ThingData.Position, CurrentWaypoint)
+            < decisionDistance) {
+           FlightModel.Flag.pad1 = false;
+           FlightModel.Flag.pad2 = false;
+
+           v11 = mRace->mVTrack->track_waypoint_type(CurrentWaypoint);
+           if (v11 == 8) {  //is Waypoint of type 8?
+              FlightModel.Flag.pad1 = true;
+           } else {
+              if (v11 < 9) {
+                if (v11 == 7) {  //waypoint of type 7?
+                   ComputerPlayer.Count2 = 3;
+                }
+vehicle_control_from_autopilot_LABEL22:
+                  LastWayPoint = CurrentWaypoint;
+                  CurrentWaypoint = mRace->mVTrack->track_waypoint_child(CurrentWaypoint);
+                  //No result found for child waypoint?
+                  if (!CurrentWaypoint) {
+                      CurrentWaypoint = mRace->mVTrack->track_waypoint_absolute_nearest(ThingData.Position);
+                  }
+
+                  v17 = 2;
+                  if (FlightModel.Flag.AutoRefuel) {
+                     currentWaypoint = CurrentWaypoint;
+                  } else {
+                    v17 = 4;
+                    if (FlightModel.Flag.AutoRepair) {
+                         currentWaypoint = CurrentWaypoint;
+                  } else {
+                    v17 = 3;
+                    if (!FlightModel.Flag.AutoRearm) {
+vehicle_control_from_autopilot_LABEL31:
+                        //controlled by computer player?
+                        if (ControlOrigin == 8) {
+                            v19 = ThingData.Position.X + ThingData.Position.Y;
+                            //The next operation first seems to be tricky in floating point
+                            //therefore initial solution: keep it in fixed point arithmetic
+                            v19Fixed = mRace->mVCalc->FloatToFixedPoint24D8(v19);
+                            //Remove the lowest 2 bits (we loose accuracy)
+                            v19Fixed = v19Fixed >> 2;
+                            //Shift back 2 bits to the left, lowest 2 bits are
+                            //set 0 value
+                            v19Fixed = v19Fixed << 2;
+                            v19Fixed &= 0xFFFFFFFC;
+
+                            if (v19Fixed == (v19Fixed - 1)) {
+                                CurrentWaypoint =
+                                        mRace->mVTrack->track_waypoint_junction_exists(CurrentWaypoint, 6);
+                            }
+                        }
+                        goto vehicle_control_from_autopilot_LABEL34;
+                    }
+
+                    currentWaypoint = CurrentWaypoint;
+                 }
+            }
+            CurrentWaypoint = mRace->mVTrack->track_waypoint_junction_exists(currentWaypoint, v17);
+            goto vehicle_control_from_autopilot_LABEL31;
+        }
+        if ( v11 != 9) {
+            goto vehicle_control_from_autopilot_LABEL22;
+        }
+        //Note 13.06.2026: Setting pad1 & pad2 flags is a bit tricky
+        //here; if something does not work reinvestigate this later, issue could
+        //be here
+        FlightModel.Flag.pad2 = true;
+    }
+
+    goto vehicle_control_from_autopilot_LABEL22;
+ }
+
+vehicle_control_from_autopilot_LABEL34:
+
+    v21 = CurrentWaypoint;
+
+    //There is some DeathMatch related code here that I will skip
+
+    //Continue with the non DeathMatch case source code
+    if (ComputerPlayer.Count1 != 0) {
+        goto vehicle_control_from_autopilot_LABEL48;
+    }
+
+    //13.06.2026: It seems there is more Autotarget related stuff I skipped
+    //right now here
+
+    if (!FlightModel.FunctionFlag.Pad9) {
+      //Skip implementation right now
+    }
+
+    if ((!ComputerPlayer.Count1) && (FlightModel.FunctionFlag.Pad4)) {
+        ComputerPlayer.Count1 = 23;
+        ComputerPlayer.Count2 = 1;
+    }
+
+vehicle_control_from_autopilot_LABEL48:
+    FlightModel.FunctionFlag.Pad4 = false;
+    if (ComputerPlayer.Count1) {
+        --ComputerPlayer.Count1;
+    }
+    if (ComputerPlayer.Count2) {
+        --ComputerPlayer.Count2;
+    }
+
+    FlightModel.Flag.AutoStop = false;
+
+    if (FlightModel.Flag.AutoRefuel) {
+        v28 = ThingData.AffectStatus & 0x10;
+    } else if (FlightModel.Flag.AutoRearm) {
+        v28 = ThingData.AffectStatus & 0x8;
+    } else {
+       if (!FlightModel.Flag.AutoRepair) {
+           goto vehicle_control_from_autopilot_LABEL60;
+       }
+       v28 = ThingData.AffectStatus & 0x20;
+    }
+
+    if (v28) {
+        FlightModel.Flag.AutoStop = true;
+    }
+
+vehicle_control_from_autopilot_LABEL60:
+    if (FlightModel.Flag.AutoStop) {
+        MovementInput.SpeedActual = -IncrementAdd.SpeedActual;
+        Momentum.DeltaX *= 0.9375f;
+        Momentum.DeltaY *= 0.9375f;
+        MovementInput.AngleXY = 0.0f;
+        if (FlightModel.Flag.AutoRefuel && Stats.Fuel >= 10000) {
+            FlightModel.Flag.AutoRefuel = false;
+            FlightModel.Flag.AutoStop = false;
+        }
+
+        if (FlightModel.Flag.AutoRearm && Stats.Weapons >= 10000) {
+            FlightModel.Flag.AutoRearm = false;
+            FlightModel.Flag.AutoStop = false;
+        }
+
+        result = 1;
+        if (FlightModel.Flag.AutoRepair) {
+            if (Stats.Health < 10000) {
+               return 1;
+            }
+            FlightModel.Flag.AutoRepair = false;
+vehicle_control_from_autopilot_LABEL135:
+            FlightModel.Flag.AutoStop = false;
+            return 1;
+        }
+        return result;
+    }
+
+    v40 = 7.109375f;
+    if (ComputerPlayer.Count1 < 20) {
+        mRace->mVTrack->track_waypoint_position_set(position, v21);
+        xy = mRace->mVCalc->angle_get_xy(ThingData.Position, position);
+        difference = mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, xy);
+        v40 = difference / 32.0f;
+        if ( difference < 0.0f) {
+            v40 = (difference + 0.12109375f) / 32.0f;
+        }
+    }
+    if (ComputerPlayer.Count2) {
+        MovementInput.SpeedActual = -IncrementAdd.SpeedActual;
+    } else {
+        MovementInput.SpeedActual = IncrementAdd.SpeedActual;
+    }
+
+    v45 = IncrementAdd.AngleXY;
+    v46 = ((irr::f32)(v45 > 0.0f) - v45) * 0.5f;
+    if ((v40 < v46) || (v46 = (v45 + (IncrementAdd.AngleXY / 32768.0f)) * 0.5f),
+                         v47 = v40 * 65536.0f, v46 < v40) {
+        v40 = v46;
+        v47 = v46 * 65536.0f;
+    }
+
+    if (v47 >= 0.0f) {
+        MovementInput.AngleXY = v40 + (MovementInput.AngleXY / 8.0f);
+    } else {
+        MovementInput.AngleXY = v40 - (MovementInput.AngleXY / 8.0f);
+    }
+
+vehicle_control_from_autopilot_LABEL129:
+    if (Stats.Fuel < 3000) {
+        FlightModel.Flag.AutoRefuel = true;
+    }
+
+    if (Stats.Health < 5000) {
+        FlightModel.Flag.AutoRepair = true;
+    }
+
+    result = 1;
+    if (Stats.Weapons < 3000) {
+        FlightModel.Flag.AutoRearm = true;
+        goto vehicle_control_from_autopilot_LABEL135;
+    }
+
+    return result;
+}
+
+void VVehicle::vehicle_setup_computer_character() {
+  if (ControlOrigin == 8) {
+      //13.06.2026: Implement function, I am to lazy to do it
+      //right now
+  }
+}
+
+uint8_t VVehicle::vehicle_set_autopilot_on() {
+    uint8_t result = 0;
+
+    if (!FlightModel.Flag.AutoDrive) {
+        if (FlightModel.Flag.AutoPilot) {
+            return 0;
+        } else {
+            //Activate Autopilot
+            FlightModel.Flag.AutoPilot = true;
+            FlightModel.Flag.AutoPilotSet = true;
+            LastWayPoint = CurrentWaypoint;
+            return 1;
+        }
+    }
+
+    return result;
+}
+
+uint8_t VVehicle::vehicle_set_autopilot_off() {
+    uint8_t result = 0;
+
+    if (!FlightModel.Flag.AutoDrive) {
+        if (FlightModel.Flag.AutoPilot) {
+            FlightModel.Flag.AutoPilot = false;
+            FlightModel.Flag.AutoPilotSet = true;
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    return result;
+}
+
+void VVehicle::vehicle_control() {
+    //Computer player?
+    if (ControlOrigin == 8) {
+        if (FlightModel.Flag.AutoPilot) {
+            vehicle_control_from_autopilot();
+        } else {
+            //no, autopilot is not yet active, activate it
+            CurrentWaypoint = mRace->mVTrack->track_waypoint_nearest(ThingData.Position);
+            vehicle_set_autopilot_on();
+        }
+        return;
+    } else {
+        if ((ControlOrigin & 1) != 0) {
+            vehicle_control_from_player();
+        }
+    }
+
+    return;
 }
 
 void VVehicle::UpdateCamera() {
