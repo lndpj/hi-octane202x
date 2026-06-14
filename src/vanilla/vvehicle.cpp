@@ -173,11 +173,21 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         vehicle_calculate_movement_delta(delta);
         vehicle_colide_map(delta);
         vehicle_colide_vectors(delta);
+        //Note: 14.06.2026: I can only assume that at one point in time
+        //the developers tried to do a different kind of collision detection
+        //using the function vehicle_colide below (maybe it needed to much performance?)
+        //Unfortunetly I accidently did implement it, but then found out that the final original
+        //game does not use it at all anymore. Instead the original game does use
+        //"vehicle_colide_final_check_sean". I commented my implementation out which is currently
+        //not tested, because I can not compare and debug it with the original game as a reference.
+        //vehicle_colide(mRace->mVanillaCraftVec, delta);
+        vehicle_colide_final_check_sean(mRace->mVanillaCraftVec, delta);
         vehicle_move_altitude(delta);
         vehicle_move_roll(delta);
         vehicle_move_tilt(delta);
         vehicle_move_mapwho(delta);
         vehicle_set_camera();
+        vehicle_post_process();
 
        // mRace->AdvModel = false;
    // }
@@ -278,6 +288,9 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    Momentum.AngleXY = 0.0f;
    Momentum.DeltaX = 0.0f;
    Momentum.DeltaY = 0.0f;
+   Bump.X = 0.0f;
+   Bump.Y = 0.0f;
+   Bump.Z = 0.0f;
    mMaximumZpos = 3.0f / 256.0f;
 
    FlightModel.FrontLeft.Zpos = ThingData.Position.Z;
@@ -1553,6 +1566,189 @@ void VVehicle::vehicle_colide_vectors(irr::core::vector3df& delta) {
 vehicle_colide_vectors_LABEL31:
     delta.X = 0.0f;
     delta.Y = 0.0f;
+}
+
+void VVehicle::vehicle_post_process() {
+    return;
+    irr::f32 speedFixed;
+
+    /********************************
+     * Fuel reduction due to moving *
+     ********************************/
+
+    speedFixed = mRace->mVCalc->FloatToFixedPoint8D8(ThingData.Movement.SpeedActual) + 39;
+    Stats.Fuel -= (speedFixed / 40);
+
+    if (Stats.Fuel < 0) {
+        Stats.Fuel = 0;
+    }
+
+    Conditions.FuelUsed += (speedFixed / 40);
+}
+
+uint8_t VVehicle::vehicle_colide_final_check_sean(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta) {
+     std::vector<VVehicle*>::iterator it;
+     irr::f32 v8;
+     irr::f32 v9;
+     irr::f32 v10;
+     irr::f32 v16;
+     irr::f32 v12;
+     irr::f32 v14;
+     irr::f32 v15;
+     irr::f32 v19;
+     irr::f32 xy;
+     irr::f32 v13;
+     irr::f32 difference;
+     irr::core::vector3df positionFrom;
+     bool collided = false;
+
+     v16 = this->ThingData.Position.Z;
+     v14 = this->ThingData.Position.X + delta.X;
+     v15 = this->ThingData.Position.Y + delta.Y;
+     positionFrom.X = 0.0f;
+     positionFrom.Y = 0.0f;
+     positionFrom.Z = 0.0f;
+
+     for (it = vehicleVec.begin(); it != vehicleVec.end(); ++it) {
+         if ((*it) != this) {
+             v8 = fabs(((*it)->ThingData.Position.Z - v16));
+             if (v8 < 0.390625f) {
+                v9 = fabs(((*it)->ThingData.Position.X - v14));
+                if (v9 < 0.3515625f) {
+                    v10 = fabs(((*it)->ThingData.Position.Y - v15));
+                    if (v10 < 0.3515625f) {
+                        collided = true;
+                        break;
+                    }
+                }
+             }
+         }
+     }
+
+     if (!collided) {
+         mDbgColl = 0.0f;
+         return 0;
+     }
+
+     positionFrom.X = -v9;
+     positionFrom.Y = -v10;
+     //positionFrom.Z = v8;
+
+    //we are collided right now with a craft
+    xy = mRace->mVCalc->angle_get_xy(positionFrom, delta);
+    difference = mRace->mVCalc->angle_get_difference(this->ThingData.Movement.AngleXY, xy);
+    v19 = difference;
+
+    if (fabs(v19) < 0.00390625f) {
+       // v19 = 0.00390625f;
+    }
+
+    v12 = fabs(v19);
+
+    if (v12 >= 0.00390625f) {
+        v13 = -0.078125f * (v19 / v12);
+    } else {
+        v13 = 0.0f;
+    }
+
+    mRace->mVCalc->move_xyz(delta, xy + 90.0f, 0.0f, v13);
+    mDbgColl = 1.0f;
+    return 1;
+}
+
+uint8_t VVehicle::vehicle_colide(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta) {
+    std::vector<VVehicle*>::iterator it;
+    irr:f32 Zpos;
+    irr::f32 v10;
+    irr::f32 v5 = 0.0f;
+    irr::core::vector3df position2;  //holds the collision point if a collision occurs
+    uint16_t v6 = 0;
+    uint16_t v8 = 0;
+    irr::core::vector3df v25;
+    irr::core::vector3df v26;
+    irr::core::vector3df u1;
+    VVehicle* collVehicle = nullptr;
+    irr::f32 v15;
+    irr::f32 v17;
+    irr::f32 squared_xy;
+
+    position2.X = 0.0f;
+    position2.Y = 0.0f;
+    position2.Z = 0.0f;
+    u1.X = 0.0f;
+    u1.Y = 0.0f;
+    u1.Z = 0.0f;
+    v25.X = 0.0f;
+    v25.Y = 0.0f;
+    v25.Z = 0.0f;
+    v26.X = 0.0f;
+    v26.Y = 0.0f;
+    v26.Z = 0.0f;
+
+    for (it = vehicleVec.begin(); it != vehicleVec.end(); ++it) {
+        if ((*it) != this) {
+            Zpos = ((*it)->ThingData.Position.Z);
+            v10 = this->ThingData.Position.Z;
+            if ((Zpos - v10) < 0.0f) {
+               if ((v10 - Zpos) < 0.390625f) {
+vehicle_colide_LABEL7:
+            if ((fabs((*it)->ThingData.Position.X - this->ThingData.Position.X) < 0.00390625f) &&
+                (fabs((*it)->ThingData.Position.Y - this->ThingData.Position.Y) < 0.00390625f)) {
+                delta.X = 0.234375f;
+                delta.Y = 0.234375f;
+            }
+            if (mRace->mVCalc->collide_on_circle((*it)->ThingData.Position, this->ThingData.Position,
+                                                 delta, 0.234375f, position2)) {
+
+               if (v6) {
+                  squared_xy = mRace->mVCalc->distance_get_squared_xy(this->ThingData.Position, position2);
+                  if (squared_xy < v5) {
+                      v5 = squared_xy;
+                      v25 = position2;
+                      collVehicle = (*it);
+                  }
+               } else {
+                     v25 = position2;
+                     collVehicle = (*it);
+                     v5 = mRace->mVCalc->distance_get_squared_xy(this->ThingData.Position, position2);
+               }
+               ++v6;
+            }
+        }
+    } else if ((Zpos - v10) < 0.390625f) {
+                goto vehicle_colide_LABEL7;
+            }
+        }
+        v8 = v6;
+    }
+
+    //no collision, return immediately
+    if (!v8) {
+        return 0;
+    }
+
+    //just to make sure that we can not crash!
+    if (collVehicle == nullptr) {
+        return 0;
+    }
+
+    u1.X = (collVehicle->Momentum.DeltaX / 4.0f);
+    u1.Y = (collVehicle->Momentum.DeltaY / 4.0f);
+    mRace->mVCalc->collide_inelastic(collVehicle->ThingData.Position, this->ThingData.Position,
+                                     u1, delta, v26, delta, collVehicle->Bump);
+
+    //Deal "bump damage" to vehicle that we collided with
+    v15 = fabs(collVehicle->Bump.X);
+    collVehicle->mBumpDamage += v15;
+
+    v17 = fabs(collVehicle->Bump.Y);
+    collVehicle->mBumpDamage += v17;
+
+    //Deal "bump damage" to ourself as well
+    mBumpDamage += v15;
+    mBumpDamage += v17;
+
+    return 1;
 }
 
 void VVehicle::UpdateSceneNode() {

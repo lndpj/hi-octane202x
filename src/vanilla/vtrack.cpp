@@ -320,11 +320,12 @@ uint8_t VTrack::do_move_colide(irr::f32 x1Float, irr::f32 y1Float, irr::f32 x2Fl
     int32_t x2 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(x2Float));
     int32_t y2 = static_cast<int32_t>(mParentRace->mVCalc->FloatToFixedPoint24D8(y2Float));
 
-    int16_t Vector = me->mVector;
-    v6 = Vector;
+    int16_t Vector;
     v7 = 0;
 
     if (me->mVector) {
+        Vector = me->mVector;
+        v6 = Vector;
         v8 = x1;
         v9 = x2;
         v10 = x1 - x2;

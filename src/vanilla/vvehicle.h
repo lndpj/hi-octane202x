@@ -36,6 +36,7 @@
 
 #include <irrlicht.h>
 #include <cstdint>
+#include <vector>
 #include "../vanilla/vcalc.h"
 
 struct VehicleSensorPointStruct {
@@ -195,6 +196,7 @@ public:
     VehicleCollideControlStruct FlightModel;
     irr::core::vector3df Displacement;
     irr::core::vector3df Slope;
+    irr::core::vector3df Bump;
 
     //Stats
     VehicleStatsStruct Stats;
@@ -202,6 +204,11 @@ public:
     irr::f32 mThrustEffectiveness = 0.0f;
     irr::f32 mSideslipFriction = 0.0f;
     irr::f32 mSideslipToThrust = 0.0f;
+
+    //BumpDamage was not used at the end
+    //at last in the Playstation version of the
+    //game
+    irr::f32 mBumpDamage = 0.0f;
 
     //flight model parameters
     irr::f32 mFriction = 0.0f;
@@ -216,6 +223,8 @@ public:
     irr::f32 mDeltaTimeFactor = 1.0f;
 
     uint16_t dbgTrackCurrWayPoint = 0;
+
+    irr::f32 mDbgColl;
 
 private:
     uint32_t ControlOrigin = 1; //activates the human player
@@ -254,8 +263,11 @@ private:
     void vehicle_sensor_point_process(VehicleSensorPointStruct& sensor, irr::core::vector3df& slope, int8_t terrain);
     void vehicle_colide_map(irr::core::vector3df& delta);
     void vehicle_colide_vectors(irr::core::vector3df& delta);
+    uint8_t vehicle_colide(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta);
+    uint8_t vehicle_colide_final_check_sean(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta);
     void vehicle_move_mapwho(irr::core::vector3df& delta);
     void vehicle_set_camera();
+    void vehicle_post_process();
 
     //Below are my functions and Members I need
     //a local coordinate system point defined on the players craft

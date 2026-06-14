@@ -1106,6 +1106,12 @@ irr::f32 VCalculations::distance_get_xy(irr::core::vector3df position1, irr::cor
     return (sqrt(v1 * v1 + v2 * v2));
 }
 
+irr::f32 VCalculations::distance_get_squared_xy(irr::core::vector3df position1, irr::core::vector3df position2) {
+    irr::f32 v2 = (position2.Y - position1.Y);
+    irr::f32 v1 = (position2.X - position1.X);
+    return (v1 * v1 + v2 * v2);
+}
+
 irr::f32 VCalculations::distance_get_rough_xy(irr::core::vector3df position1, irr::core::vector3df position2) {
     irr::f32 result = fabs(position2.X - position1.X);
     irr::f32 v5 = fabs(position2.Y - position1.Y);
@@ -1326,6 +1332,316 @@ irr::f32 VCalculations::point_from_line(irr::f32 x1, irr::f32 y1, irr::f32 dx,
   return (v10 / v9);
 }
 
+//Note 14.06.2026: The function "collide_inelastic" below was accidently implemented, before
+//finding out that the original game does not use it anymore at all. Therefore this function
+//is currently not called, and still completelty untested
+void VCalculations::collide_inelastic(irr::core::vector3df pos1, irr::core::vector3df pos2,
+                       irr::core::vector3df u1, irr::core::vector3df u2,
+                       irr::core::vector3df& v1, irr::core::vector3df& v2,
+                                 irr::core::vector3df& bump) {
+    irr::f32 v7;
+    irr::f32 v8;
+    irr::f32 v11;
+    irr::f32 v12;
+    irr::f32 v13;
+    irr::f32 v14;
+    irr::f32 v15;
+    irr::f32 v16;
+    irr::f32 v17;
+    irr::f32 v18;
+    irr::f32 v19;
+    irr::f32 v20;
+    irr::f32 v21;
+    irr::f32 v22;
+    irr::f32 v23;
+    irr::f32 v24;
+    irr::f32 v25;
+    irr::f32 v26;
+
+    v7 = pos1.X - pos2.X;
+    v8 = pos1.Y - pos2.Y;
+    v11 = sqrt(v7 * v7 + v8 * v8);
+    v12 = v7 * 256.0f;
+    if (fabs(v11) < 0.00390625f) {
+        v11 = 0.00390625f;
+    }
+
+    v13 = v12 / v11;
+    v14 = (v8 * 256.0f) / v11;
+
+    v15 = (u2.X + u2.X / 32768.0f) * 0.5f;
+    v16 = (u1.X + u1.X / 32768.0f) * 0.5f;
+    v17 = (u1.Y + u1.Y / 32768.0f) * 0.5f;
+    v18 = (u2.Y + u2.Y / 32768.0f) * 0.5f;
+    v19 = v15 * 2.0f * v14;
+    v20 = (v13 * (v15 + v16) + v14 * (v18 + v17)) / 256.0f;
+    v21 = v20 * v13;
+    v22 = (v19 - v18 * 2.0f * v13) / 256.0f;
+    v23 = v22 * v14;
+    v24 = v20 * v14;
+    v25 = v22 * v13;
+    v26 = (v16 * 2.0f * v14 - v17 * 2.0f * v13) / 256.0f;
+
+    v21 /= 256.0f;
+    v2.X = v21 + (v23 / 256.0f);
+    v24 /= 256.0f;
+    v2.Y = v24 - (v25 / 256.0f);
+    v1.X = v21 + ((v26 * v14) / 256.0f);
+    v1.Y = v24 - ((v26 * v13) / 256.0f);
+    bump.X = v21;
+    bump.Y = v24;
+}
+
+//Note 14.06.2026: The function "collide_on_circle" below was accidently implemented, before
+//finding out that the original game does not use it anymore at all. Therefore this function
+//is currently not called, and still completelty untested
+uint8_t VCalculations::collide_on_circle(irr::core::vector3df center, irr::core::vector3df pos,
+                                irr::core::vector3df delta, irr::f32 radius,
+                                irr::core::vector3df& colision_point) {
+
+    irr::core::vector3df& v45 = colision_point;
+    irr::f32 Xpos = center.X;
+    irr::f32 v10 = Xpos - pos.X;
+    irr::f32 v46 = pos.X;
+    irr::f32 Ypos = center.Y;
+    irr::f32 v47 = pos.Y;
+    irr::f32 v12 =  Ypos - v47;
+    irr::f32 v13 = radius;
+    irr::f32 v48 = delta.X;
+    irr::f32 v14 = delta.Y;
+    irr::f32 v15 = sqrt(v10 * v10 + v12 * v12) - 2.0f * radius;
+    irr::f32 v49 = 2.0f * v13;
+    irr::f32 v17;
+    irr::f32 v18;
+    irr::f32 v19;
+    irr::f32 v20;
+    irr::f32 v21;
+    irr::f32 v22;
+    uint8_t result = 0;
+    double var_60_var5C;
+    double var_s0_s1_1;
+    double var_58_var_54;
+    double var_s0_s1_2;
+    double a0_s1;
+    double res_800246CC;
+    double var_48_var_44;
+    double var_40_var_3C;
+    double s0_s1_3;
+    double a0_s1_2;
+    double var_50_var_4C = 1.875;
+    double a0_s1_3;
+    double a0_a3;
+    double res_80024780;
+    double res_80024788;
+    double s2_s3;
+    double res_800247C4;
+    double input2_800247D8;
+    double s0_s1_4;
+    double res_800247F4;
+    double var_30_var2C;
+    double a0_a1;
+    double res_80024844;
+    double a0_a1_2;
+    double res_8002487C;
+
+    if (v15 < -10.0f) {
+        return 2;
+    }
+
+    v17 = v10 * v48 + v12 * v14;
+    v18 = -v48;
+    if ((v17 <= 0.0f) || (v15 >= sqrt(v18 * v18 + (-v14) * (-v14)))) {
+        goto collide_on_circle_LABEL_12;
+    }
+
+    v19 = v48 * v47 - v14 * v46;
+    v20 = sqrt(v14 * v14 + v18 * v18) + 1.0f;
+    v21 = fabs(v14 * Xpos + v18 * Ypos + v19);
+    v22 = (v21 / v20);
+    if (v22 >= v49) {
+collide_on_circle_LABEL_12:
+        result = 0;
+        v45.X = 0.0f;
+        v45.Y = 0.0f;
+    } else
+    {
+       var_60_var5C = (double)(v10 * Ypos);
+       var_s0_s1_1 = (double)(v10);
+       var_60_var5C /= var_s0_s1_1;
+       var_58_var_54 = (double)(v12);
+       var_58_var_54 /= var_s0_s1_1;
+       var_s0_s1_2 = (double)(v47 + v14) * var_60_var5C;
+       a0_s1 = (double)((v47 + v14 - Ypos) * 2.0f);
+       res_800246CC = a0_s1 * var_58_var_54;
+       var_48_var_44 = a0_s1 + res_800246CC;
+       var_40_var_3C = (double)(v10 * v10 - v13 * 4.0f * v13);
+       s0_s1_3 = var_48_var_44 * var_48_var_44;
+       a0_s1_2 = 2.25 * var_50_var_4C;
+       a0_s1_3 = a0_s1_2 * var_40_var_3C;
+       a0_a3 = s0_s1_3 / a0_s1_3;
+       res_80024780 = a0_a3;
+       if (a0_a3 < 0.0f) {
+           res_80024780 = 0.0f;
+       }
+       res_80024788 = sqrt(res_80024780);
+       s2_s3 = -var_48_var_44;
+       if (res_80024788 >= 0.0) {
+           input2_800247D8 = res_80024788;
+           goto loc_800247D0;
+       }
+
+       res_800247C4 = s2_s3 + 30.0;
+       input2_800247D8 = res_800247C4;
+
+ loc_800247D0:
+       s0_s1_4 = s2_s3 + input2_800247D8;
+       res_800247F4 = var_50_var_4C + var_50_var_4C;
+       var_30_var2C = s0_s1_4 / res_800247F4;
+       a0_a1 = var_30_var2C * var_60_var5C;
+       res_80024844 = a0_a1 + 1.75;
+       a0_a1_2 = var_30_var2C * var_58_var_54;
+       res_8002487C = a0_a1_2 + 1.75;
+
+       result = 1;
+       v45.X = res_80024844 + v48 + v46;
+       v45.Y = res_8002487C + v14 + v47;
+    }
+
+    return result;
+}
+
+//The function below "verify_collide_on_circle_step" is not used currently
+bool VCalculations::verify_collide_on_circle_step(int16_t center[3], int16_t pos[3], int16_t delta[3],
+                                                  int16_t radius, int16_t *colision_point[3],
+                                                  uint8_t expResult, int16_t expColision_point[3],
+                                                  int16_t whichSeqCaseTested) {
+     irr::core::vector3df centerFloat;
+     centerFloat.X = FixedPointToFloat8D8(center[0]);
+     centerFloat.Y = FixedPointToFloat8D8(center[1]);
+     centerFloat.Z = FixedPointToFloat8D8(center[2]);
+
+     irr::core::vector3df posFloat;
+     posFloat.X = FixedPointToFloat8D8(pos[0]);
+     posFloat.Y = FixedPointToFloat8D8(pos[1]);
+     posFloat.Z = FixedPointToFloat8D8(pos[2]);
+
+     irr::core::vector3df deltaFloat;
+     deltaFloat.X = FixedPointToFloat8D8(delta[0]);
+     deltaFloat.Y = FixedPointToFloat8D8(delta[1]);
+     deltaFloat.Z = FixedPointToFloat8D8(delta[2]);
+
+     irr::f32 radiusFloat = FixedPointToFloat8D8(radius);
+
+     irr::core::vector3df colision_pointFloat;
+     colision_pointFloat.X = FixedPointToFloat8D8(*colision_point[0]);
+     colision_pointFloat.Y = FixedPointToFloat8D8(*colision_point[1]);
+     colision_pointFloat.Z = FixedPointToFloat8D8(*colision_point[2]);
+
+     uint8_t result =
+             collide_on_circle(centerFloat, posFloat, deltaFloat, radiusFloat, colision_pointFloat);
+
+     if (result != expResult) {
+         std::string infoTxt("verify_collide_on_circle_step: Testcase for following sequence failed: ");
+         infoTxt += std::to_string((int)(whichSeqCaseTested));
+         infoTxt += " Return value difference: Expected: ";
+         infoTxt += std::to_string((int)(expResult));
+         infoTxt += " Returned: ";
+         infoTxt += std::to_string((int)(result));
+         infoTxt += " dec!";
+
+         logging::Error(infoTxt);
+         return false;
+     }
+
+     //verify the returned collision point
+     int16_t retColisionPntFixed[3];
+     retColisionPntFixed[0] = FloatToFixedPoint8D8(colision_pointFloat.X);
+     retColisionPntFixed[1] = FloatToFixedPoint8D8(colision_pointFloat.Y);
+     retColisionPntFixed[2] = FloatToFixedPoint8D8(colision_pointFloat.Z);
+
+     int32_t errorColPntX = abs(expColision_point[0] - retColisionPntFixed[0]);
+
+     if (errorColPntX > 2) {
+         std::string infoTxt("verify_collide_on_circle_step: Testcase for following sequence failed: ");
+         infoTxt += std::to_string((int)(whichSeqCaseTested));
+         infoTxt += " Collision Pnt X Difference: ";
+         infoTxt += std::to_string((int)(expColision_point[0] - retColisionPntFixed[0]));
+         infoTxt += " dec!";
+
+         logging::Error(infoTxt);
+         return false;
+     }
+
+     int32_t errorColPntY = abs(expColision_point[1] - retColisionPntFixed[1]);
+
+     if (errorColPntY > 2) {
+         std::string infoTxt("verify_collide_on_circle_step: Testcase for following sequence failed: ");
+         infoTxt += std::to_string((int)(whichSeqCaseTested));
+         infoTxt += " Collision Pnt Y Difference: ";
+         infoTxt += std::to_string((int)(expColision_point[1] - retColisionPntFixed[1]));
+         infoTxt += " dec!";
+
+         logging::Error(infoTxt);
+         return false;
+     }
+
+     int32_t errorColPntZ = abs(expColision_point[2] - retColisionPntFixed[2]);
+
+     if (errorColPntZ > 2) {
+         std::string infoTxt("verify_collide_on_circle_step: Testcase for following sequence failed: ");
+         infoTxt += std::to_string((int)(whichSeqCaseTested));
+         infoTxt += " Collision Pnt Z Difference: ";
+         infoTxt += std::to_string((int)(expColision_point[2] - retColisionPntFixed[2]));
+         infoTxt += " dec!";
+
+         logging::Error(infoTxt);
+         return false;
+     }
+
+     return true;
+}
+
+//Returns true if collide_on_circle works as expected, False
+//otherwise
+//The function below "verify_collide_on_circle_step" is not used currently
+bool VCalculations::Verify_collide_on_circle() {
+    bool overallResult = true;
+
+    //arrays for input and output test verification data
+    int16_t center[3];
+    int16_t pos[3];
+    int16_t delta[3];
+    int16_t radius;
+    int16_t colision_point[3];
+    uint8_t expResult;
+    int16_t expColision_point[3];
+
+    //Testcase 1, Input values
+   // center[0] =   ;   center[1] =  ;  center[2] = ;
+   // pos[0] =      ;   pos[1] =  ;  pos[2] = ;
+   // delta[0] =      ;   delta[1] =  ;  delta[2] = ;
+   // radius = ;
+   // colision_point[0] =      ;   colision_point[1] =  ;  colision_point[2] = ;
+
+    //Testcase 1, Expected output values
+   // expResult = ;
+   // expColision_point[0] =      ;   expColision_point[1] =  ;  expColision_point[2] = ;
+
+    //Test data captured in original game using emulator and debugger
+    /*overallResult &= verify_collide_on_circle_step(center, pos, delta, radius, colision_point,
+                                                   expResult, expColision_point, 1);*/
+
+
+    if (overallResult) {
+        logging::Info("Verify_collide_on_circle: All testcases pass");
+        return true;
+    } else {
+        logging::Error("Verify_collide_on_circle: At least one testcase failed");
+    }
+
+    return false;
+}
+
 /***************************************************
  * Conversion Routines                             *
  ***************************************************/
@@ -1427,6 +1743,10 @@ bool VCalculations::Verify_vanilla_calculations() {
 
     //Verify angle_get_difference
     overallResult &= Verify_angle_get_difference();
+
+    //Verify collide_on_circle
+    //Function is not used anymore by the original game
+    //overallResult &= Verify_collide_on_circle();
 
     if (overallResult) {
         logging::Info("Verify_vanilla_calculations: All testcases pass");

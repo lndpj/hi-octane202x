@@ -695,6 +695,11 @@ Race::~Race() {
         mVCraft = nullptr;
     }
 
+    if (mVCraft2 != nullptr) {
+        delete mVCraft2;
+        mVCraft2 = nullptr;
+    }
+
     //remove camera SceneNode
     mCamera->remove();
 
@@ -1983,6 +1988,20 @@ void Race::Init() {
 
         mVCraft = new VVehicle(this, mVCalc->VanillaToIrrlichtCoord(vPos),
                                mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));
+
+        //add a second vehicle for testing of collision detection
+        testVehiclePos.set(mPlayerStartLocations.at(1));
+
+        vPos = mVCalc->IrrlichtToVanillaCoord(testVehiclePos);
+        vPos.Z = mVCalc->map_floor(vPos);
+        vPos.Z += 0.5f;
+
+        mVCraft2 = new VVehicle(this, mVCalc->VanillaToIrrlichtCoord(vPos),
+                               mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));
+
+        mVanillaCraftVec.clear();
+        mVanillaCraftVec.push_back(mVCraft);
+        mVanillaCraftVec.push_back(mVCraft2);
     }
 
     mVCamera = new VCamera(this);
@@ -2254,6 +2273,7 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
 
     if (mAddVVehicle) {
      mVCraft->Update(frameDeltaTime);
+     mVCraft2->Update(frameDeltaTime);
     }
 
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntMorphing);

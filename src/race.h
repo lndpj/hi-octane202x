@@ -152,6 +152,10 @@ public:
     ~Race();
 
     VVehicle* mVCraft = nullptr;
+    VVehicle* mVCraft2 = nullptr;
+
+    std::vector<VVehicle*> mVanillaCraftVec;
+
     VTrack* mVTrack = nullptr;
     VCamera* mVCamera = nullptr;
     DbgInterface* mVDbgInterface = nullptr;
