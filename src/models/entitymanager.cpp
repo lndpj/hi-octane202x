@@ -269,6 +269,7 @@ void EntityManager::SetVisible(irr::u8 whichEntityClass, bool visible) {
             SetVisibleEntityType(Entity::WaypointSpecial2, visible);
             SetVisibleEntityType(Entity::WaypointSpecial3, visible);
             SetVisibleEntityType(Entity::WaypointSlow, visible);
+            SetVisibleEntityType(Entity::WaypointUnknownVal5, visible);
 
             break;
         }
@@ -414,6 +415,7 @@ bool EntityManager::EntityIsWayPoint(EditorEntity* entity) {
         case Entity::EntityType::WaypointSpecial1:
         case Entity::EntityType::WaypointSpecial2:
         case Entity::EntityType::WaypointSpecial3:
+        case Entity::EntityType::WaypointUnknownVal5:
         case Entity::EntityType::WaypointSlow: {
             return true;
         }
@@ -620,6 +622,7 @@ ColorStruct* EntityManager::GetColorForWayPointType(Entity::EntityType whichType
         case Entity::EntityType::WaypointSpecial2:
         case Entity::EntityType::WaypointSpecial3:
         case Entity::EntityType::WaypointSlow:
+        case Entity::EntityType::WaypointUnknownVal5:
         default: {
            return(mInfra->mDrawDebug->grey);
         }
@@ -639,6 +642,7 @@ irr::io::path EntityManager::GetModelForEntityType(Entity::EntityType entityType
         case Entity::EntityType::WaypointSpecial3:
         case Entity::EntityType::WaypointFast:
         case Entity::EntityType::WaypointSlow:
+        case Entity::EntityType::WaypointUnknownVal5:
 
         case Entity::EntityType::WallSegment:
         {
@@ -782,6 +786,7 @@ void EntityManager::CreateEntity(EntityItem* p_entity) {
     case Entity::EntityType::WaypointSpecial1:
     case Entity::EntityType::WaypointSpecial2:
     case Entity::EntityType::WaypointSpecial3:
+    case Entity::EntityType::WaypointUnknownVal5:
     case Entity::EntityType::WaypointSlow: {
         EditorEntity* newEntity;
         irr::scene::IMesh* wMesh = nullptr;
@@ -1387,6 +1392,11 @@ std::string EntityManager::GetNameForEntityType(Entity::EntityType mEntityType) 
             return name;
          }
 
+         case Entity::EntityType::WaypointUnknownVal5: {
+            name.append("WaypointUnknownVal5");
+            return name;
+         }
+
          case Entity::EntityType::WaypointShortcut: {
             name.append("WaypointShortcut");
             return name;
@@ -1764,6 +1774,7 @@ bool EntityManager::MoveEntityToCell(EditorEntity* itemToMove, int targetCellX, 
         case Entity::EntityType::WaypointSpecial1:
         case Entity::EntityType::WaypointSpecial2:
         case Entity::EntityType::WaypointSpecial3:
+        case Entity::EntityType::WaypointUnknownVal5:
         case Entity::EntityType::WaypointSlow:
         case Entity::EntityType::WallSegment: {
             //modify cube position, so that it is not

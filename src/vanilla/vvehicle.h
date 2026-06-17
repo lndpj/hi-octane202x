@@ -36,6 +36,7 @@
 
 #include <irrlicht.h>
 #include <cstdint>
+#include <vector>
 #include "../vanilla/vcalc.h"
 
 struct VehicleSensorPointStruct {
@@ -67,13 +68,19 @@ struct VehicleControlFlagsStruct {
     bool HealthDeath;
     bool FuelDeath;
     bool Reposition;
+    //pad1 and pad2 seems to be used by
+    //autopilot
+    bool pad1;
+    bool pad2;
 };
 
 struct VehicleFunctionFlagsStruct {
     bool Booster;
     bool Brake;
     bool BarrelRoll;
+    bool Pad4;  //seems to be used for computer player control
     bool Pad6;  //seems to be used during collision detection with vector collision
+    bool Pad9;  //seems to be used for computer player control
 };
 
 struct VehicleCollideControlStruct {
@@ -131,6 +138,17 @@ struct VehicleConditionsStruct {
     int32_t WeaponsUsed = 0;
 };
 
+struct VehicleComputerPlayerStruct {
+    int16_t EnemyIndex;
+    int16_t Count1;
+    int16_t Count2;
+    int16_t Count3;
+    uint8_t Skill;
+    uint8_t Param2;
+    uint8_t Param3;
+    uint8_t Param4;
+};
+
 /************************
  * Forward declarations *
  ************************/
@@ -178,6 +196,7 @@ public:
     VehicleCollideControlStruct FlightModel;
     irr::core::vector3df Displacement;
     irr::core::vector3df Slope;
+    irr::core::vector3df Bump;
 
     //Stats
     VehicleStatsStruct Stats;
@@ -185,6 +204,11 @@ public:
     irr::f32 mThrustEffectiveness = 0.0f;
     irr::f32 mSideslipFriction = 0.0f;
     irr::f32 mSideslipToThrust = 0.0f;
+
+    //BumpDamage was not used at the end
+    //at last in the Playstation version of the
+    //game
+    irr::f32 mBumpDamage = 0.0f;
 
     //flight model parameters
     irr::f32 mFriction = 0.0f;
@@ -198,7 +222,14 @@ public:
 
     irr::f32 mDeltaTimeFactor = 1.0f;
 
+    uint16_t dbgTrackCurrWayPoint = 0;
+
+    irr::f32 mDbgColl;
+
 private:
+    uint32_t ControlOrigin = 1; //activates the human player
+    uint16_t LastWayPoint = 0;
+    uint16_t CurrentWaypoint = 0;
 
     //variables which only I use in my project
     irr::f32 mAbsTimeIntegrator = 0.0f;
@@ -211,21 +242,39 @@ private:
 
     void SetupFlightModelConstants();
 
+    VehicleComputerPlayerStruct ComputerPlayer;
+    void vehicle_setup_computer_character();
+
+    void vehicle_control();
+    void vehicle_control_from_player();
+    uint8_t vehicle_control_from_autopilot();
+    uint8_t vehicle_set_autopilot_on();
+    uint8_t vehicle_set_autopilot_off();
+
     void vehicle_get_track_friction();
     void vehicle_calculate_angle();
     void vehicle_calculate_thrust(irr::core::vector3df& delta);
     void vehicle_calculate_momentum(irr::core::vector3df& delta);
     void vehicle_calculate_movement_delta(irr::core::vector3df& delta);
     void vehicle_move_altitude(irr::core::vector3df& delta);
-    void vehicle_control_from_player();
     void vehicle_move_tilt(irr::core::vector3df& delta);
     void vehicle_move_roll(irr::core::vector3df& delta);
     void vehicle_sensor_point_projection(irr::core::vector3df& delta);
     void vehicle_sensor_point_process(VehicleSensorPointStruct& sensor, irr::core::vector3df& slope, int8_t terrain);
     void vehicle_colide_map(irr::core::vector3df& delta);
     void vehicle_colide_vectors(irr::core::vector3df& delta);
+    uint8_t vehicle_colide(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta);
+    uint8_t vehicle_colide_final_check_sean(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta);
     void vehicle_move_mapwho(irr::core::vector3df& delta);
     void vehicle_set_camera();
+    void vehicle_post_process();
+
+    bool OrientedBBoxCollision(VVehicle* vehicle1, VVehicle* vehicle2,
+                                        irr::core::vector3df& collNormal, irr::f32& depth);
+
+    uint8_t vehicle_colide_my_attempt(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta);
+    bool VehiclesCheckForCollision(VVehicle* vehicle1, VVehicle* vehicle2,
+               irr::core::vector3df& collNormal, irr::f32& depth);
 
     //Below are my functions and Members I need
     //a local coordinate system point defined on the players craft

@@ -318,7 +318,7 @@ bool Game::HandleGuiEvent(const irr::SEvent& event) {
 void Game::SetupDebugGame() {
 
     //which level should be directly entered?
-    nextRaceLevelNr = 1;
+    nextRaceLevelNr = 8;
 
     //set craft for main player
     //value 0 means KD1 Speeder (default selection at first start)
@@ -1245,7 +1245,8 @@ void Game::GameLoopRace(irr::f32 frameDeltaTime) {
                     this->mCurrentRace->mPlayerVec.at(1)->mCurrentPathSegSortedOutReverse.size()
                     );*/
 
-          swprintf(text2, 390, L"");
+            swprintf(text2, 390, L"");
+          // swprintf(text2, 390, L"%lf", mCurrentRace->mVCraft->mDbgColl);
 
          /*  swprintf(text2, 390, L"Increment.SpeedActual: %lf \nIncrementAdd.SpeedActual: %lf \nIncrementLimit.SpeedActual: %lf\nStat.Velocity: %lf", this->mCurrentRace->mVCraft->Increment.SpeedActual,
                     this->mCurrentRace->mVCraft->IncrementAdd.SpeedActual, this->mCurrentRace->mVCraft->IncrementLimit.SpeedActual, this->mCurrentRace->mVCraft->Stats.Velocity);*/

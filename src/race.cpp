@@ -695,6 +695,11 @@ Race::~Race() {
         mVCraft = nullptr;
     }
 
+    if (mVCraft2 != nullptr) {
+        delete mVCraft2;
+        mVCraft2 = nullptr;
+    }
+
     //remove camera SceneNode
     mCamera->remove();
 
@@ -1983,6 +1988,20 @@ void Race::Init() {
 
         mVCraft = new VVehicle(this, mVCalc->VanillaToIrrlichtCoord(vPos),
                                mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));
+
+        //add a second vehicle for testing of collision detection
+        /*testVehiclePos.set(mPlayerStartLocations.at(1));
+
+        vPos = mVCalc->IrrlichtToVanillaCoord(testVehiclePos);
+        vPos.Z = mVCalc->map_floor(vPos);
+        vPos.Z += 0.5f;
+
+        mVCraft2 = new VVehicle(this, mVCalc->VanillaToIrrlichtCoord(vPos),
+                               mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));*/
+
+        mVanillaCraftVec.clear();
+        mVanillaCraftVec.push_back(mVCraft);
+      //  mVanillaCraftVec.push_back(mVCraft2);
     }
 
     mVCamera = new VCamera(this);
@@ -2253,7 +2272,11 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     UpdateTimers(frameDeltaTime);
 
     if (mAddVVehicle) {
-     mVCraft->Update(frameDeltaTime);
+        std::vector<VVehicle*>::iterator it;
+
+        for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
+            (*it)->Update(frameDeltaTime);
+        }
     }
 
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntMorphing);
@@ -3424,6 +3447,16 @@ void Race::Render() {
 
     if (mVCraft != nullptr) {
         //mVCraft->DrawDebug();
+      /*  if (mVCraft->dbgTrackCurrWayPoint != 0) {
+            irr::core::vector3df vanPosWayPnt = mVTrack->TrackWaypointList[mVCraft->dbgTrackCurrWayPoint].Position;
+            vanPosWayPnt.Z = mVCalc->map_floor(vanPosWayPnt);
+            irr::core::vector3df irrPosWayPnt = mVCalc->VanillaToIrrlichtCoord(vanPosWayPnt);
+
+            irr::core::vector3df vanPosCraft = mVCraft->ThingData.Position;
+            irr::core::vector3df irrPosCraft = mVCalc->VanillaToIrrlichtCoord(vanPosCraft);
+
+            mGame->mDrawDebug->Draw3DLine(irrPosCraft, irrPosWayPnt, mGame->mDrawDebug->cyan);
+        }*/
     }
 }
 
@@ -4622,6 +4655,7 @@ ColorStruct* Race::GetColorForWayPointType(Entity::EntityType whichType) {
         case Entity::EntityType::WaypointSpecial2:
         case Entity::EntityType::WaypointSpecial3:
         case Entity::EntityType::WaypointSlow:
+        case Entity::EntityType::WaypointUnknownVal5:
         default: {
            return(mGame->mDrawDebug->grey);
         }
@@ -4872,6 +4906,7 @@ void Race::createEntity(EntityItem *p_entity,
         case Entity::EntityType::WaypointFuel:
         case Entity::EntityType::WaypointShield:
         case Entity::EntityType::WaypointShortcut:
+        case Entity::EntityType::WaypointUnknownVal5:
         case Entity::EntityType::WaypointSpecial1:
         case Entity::EntityType::WaypointSpecial2:
         case Entity::EntityType::WaypointSpecial3:
@@ -4879,6 +4914,20 @@ void Race::createEntity(EntityItem *p_entity,
         case Entity::EntityType::WaypointSlow: {
             //add a level waypoint
             AddWayPoint(p_entity, next);
+
+            if (next != nullptr) {
+                  irr::core::vector3df irrPosNext = next->getCenter();
+                  irr::core::vector3df vanPosNext = mVCalc->IrrlichtToVanillaCoord(irrPosNext);
+                  vanPosNext.Z = 0.0f; //the game has at this point of time no height information
+
+                  irr::core::vector3df irrPosEntity = entity.getCenter();
+                  irr::core::vector3df vanPosEntity = mVCalc->IrrlichtToVanillaCoord(irrPosEntity);
+                  vanPosEntity.Z = 0.0f; //the game has at this point of time no height information
+
+                  mVTrack->track_initialise_waypoint((uint16_t)(entity.getRawSubType()),
+                                              vanPosEntity, vanPosNext);
+               }
+
             break;
         }
 

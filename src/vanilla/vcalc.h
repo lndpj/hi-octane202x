@@ -236,6 +236,12 @@ public:
                                  irr::f32 angleZY, irr::f32 speed);
 
     irr::f32 distance_get_xyz(irr::core::vector3df position1, irr::core::vector3df position2);
+    irr::f32 distance_get_xy(irr::core::vector3df position1, irr::core::vector3df position2);
+    irr::f32 distance_get_squared_xy(irr::core::vector3df position1, irr::core::vector3df position2);
+
+    irr::f32 distance_get_rough_xy(irr::core::vector3df position1, irr::core::vector3df position2);
+    void distance_get_xy_coords(irr::core::vector3df position1, irr::core::vector3df position2,
+                                irr::core::vector3df& distance);
 
     //Helper function for function verification
     bool Verify_arctanPlusMultiply32(int16_t xVal, int16_t yVal, int16_t expResult,
@@ -259,6 +265,22 @@ public:
 
     void UnwrapPhaseUnsigned(irr::f32& angle);
     void UnwrapPhaseSigned(irr::f32& angle);
+
+    irr::f32 point_from_line(irr::f32 x1, irr::f32 y1, irr::f32 dx, irr::f32 dy, irr::f32 px, irr::f32 py);
+
+    void collide_inelastic(irr::core::vector3df pos1, irr::core::vector3df pos2,
+                           irr::core::vector3df u1, irr::core::vector3df u2,
+                           irr::core::vector3df& v1, irr::core::vector3df& v2,
+                           irr::core::vector3df& bump);
+
+    uint8_t collide_on_circle(irr::core::vector3df center, irr::core::vector3df pos,
+                                    irr::core::vector3df delta, irr::f32 radius,
+                                    irr::core::vector3df& colision_point);
+    bool verify_collide_on_circle_step(int16_t center[3], int16_t pos[3], int16_t delta[3],
+                                       int16_t radius, int16_t *colision_point[3],
+                                       uint8_t expResult, int16_t expColision_point[3],
+                                       int16_t whichSeqCaseTested);
+    bool Verify_collide_on_circle();
 };
 
 #endif // VCALC_H

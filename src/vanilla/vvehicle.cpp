@@ -44,6 +44,7 @@
 #include "debug/structs/thingvehicle.h"
 #include "debug/structs/cam.h"
 #include "debug/datatools.h"
+#include "../utils/boundingbox/collision.h"
 
 //according to the emulator this function is supposed
 //to run periodically every ~45 ms
@@ -151,7 +152,7 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         //Playstation 1 emulator executes this vehicle update loop average every 1721634 CPU cycles
         //CPU clocks at 33.8688 MHz, which means lets run this loop every ~50.83 ms
 
-        vehicle_control_from_player();
+        vehicle_control();
 
        /* mRace->mVDbgInterface->Init(std::string("coll.bin"), std::string(""), std::string("extract/level0-1/level0-1-unpacked.dat"));
         ParseThing* thing = mRace->mVDbgInterface->newDump->ReturnThingFirstPlayer();
@@ -173,17 +174,30 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         vehicle_calculate_movement_delta(delta);
         vehicle_colide_map(delta);
         vehicle_colide_vectors(delta);
+        //Note: 14.06.2026: I can only assume that at one point in time
+        //the developers tried to do a different kind of collision detection
+        //using the function vehicle_colide below (maybe it needed to much performance?)
+        //Unfortunetly I accidently did implement it, but then found out that the final original
+        //game does not use it at all anymore. Instead the original game does use
+        //"vehicle_colide_final_check_sean". I commented my implementation out which is currently
+        //not tested, because I can not compare and debug it with the original game as a reference.
+        //vehicle_colide(mRace->mVanillaCraftVec, delta);
+        //vehicle_colide_final_check_sean(mRace->mVanillaCraftVec, delta);
+        vehicle_colide_my_attempt(mRace->mVanillaCraftVec, delta);
         vehicle_move_altitude(delta);
         vehicle_move_roll(delta);
         vehicle_move_tilt(delta);
         vehicle_move_mapwho(delta);
         vehicle_set_camera();
+        vehicle_post_process();
 
        // mRace->AdvModel = false;
    // }
 
         UpdateSceneNode();
         UpdateCoordinates();
+
+        dbgTrackCurrWayPoint = mRace->mVTrack->track_waypoint_nearest(ThingData.Position);
     }
 }
 
@@ -261,6 +275,12 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
 
    SetupFlightModelConstants();
 
+   //if computer player
+   if (ControlOrigin == 8) {
+       ComputerPlayer.EnemyIndex = 1;
+       ComputerPlayer.Skill = 90;
+   }
+
    irr::core::vector3df vanPos = mRace->mVCalc->IrrlichtToVanillaCoord(NewPosition);
    irr::f32 terrHeight = mRace->mVCalc->map_altitude_column_and_floor(vanPos);
    vanPos.Z = terrHeight + 0.5f;
@@ -270,6 +290,9 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    Momentum.AngleXY = 0.0f;
    Momentum.DeltaX = 0.0f;
    Momentum.DeltaY = 0.0f;
+   Bump.X = 0.0f;
+   Bump.Y = 0.0f;
+   Bump.Z = 0.0f;
    mMaximumZpos = 3.0f / 256.0f;
 
    FlightModel.FrontLeft.Zpos = ThingData.Position.Z;
@@ -291,18 +314,31 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    FlightModel.Flag.HealthDeath = false;
    FlightModel.Flag.FuelDeath = false;
    FlightModel.Flag.Reposition = false;
+   FlightModel.Flag.pad1 = false;
+   FlightModel.Flag.pad2 = false;
 
+   FlightModel.FunctionFlag.Pad4 = false;
    FlightModel.FunctionFlag.Pad6 = false;
+   FlightModel.FunctionFlag.Pad9 = false;
 
    FlightModel.FunctionFlag.Brake = true;
    FlightModel.FunctionFlag.Booster = true;
    FlightModel.FunctionFlag.BarrelRoll = true;
+
+   ComputerPlayer.Count1 = 0;
+   ComputerPlayer.Count2 = 0;
+   ComputerPlayer.Count3 = 0;
+   ComputerPlayer.Param2 = 0;
+   ComputerPlayer.Param3 = 0;
+   ComputerPlayer.Param4 = 0;
 
    Stats.Health = 10000;
    Stats.Fuel = 10000;
    Stats.Weapons = 10000;
 
    ThingData.AffectStatus = 0;
+
+   vehicle_setup_computer_character();
 
    mCraftMesh = mRace->mGame->mSmgr->getMesh(irr::io::path("extract/models/car0-0.obj"));
    mCraftNode = mRace->mGame->mSmgr->addMeshSceneNode(mCraftMesh);
@@ -1087,6 +1123,309 @@ vehicle_control_from_player_LABEL_28:
     }
 }
 
+uint8_t VVehicle::vehicle_control_from_autopilot() {
+    irr::f32 velocity;
+    irr::f32 decisionDistance;
+    uint16_t v11;
+    uint16_t v17;
+    uint16_t currentWaypoint;
+    irr::f32 v19;
+    int32_t v19Fixed;
+    uint32_t v28;
+    irr::f32 v40;
+    irr::f32 v45;
+    irr::f32 v46;
+    irr::f32 v47;
+    irr::f32 xy;
+    irr::f32 difference;
+    uint8_t result;
+    uint16_t v21;
+
+    irr::core::vector3df position;
+
+    //TODO: Add vehicle_check_vehicle_movement_status later;
+
+    result = 1;
+
+    //If there is no current waypoint
+    //make sure to exit
+    if (!CurrentWaypoint) {
+        return result;
+    }
+
+    velocity = Stats.Velocity;
+    decisionDistance = 3.0f;
+
+    if (velocity >= 0.1953125f) {
+      if (velocity >= 0.390625f) {
+          decisionDistance = 6.0f;
+          if (velocity < 0.5859375f) {
+             decisionDistance = 5.0f;
+          }
+      } else {
+          decisionDistance = 4.0f;
+      }
+    }
+
+    //are we close enough to the current waypoint?
+    if (mRace->mVTrack->track_waypoint_distance(ThingData.Position, CurrentWaypoint)
+            < decisionDistance) {
+           FlightModel.Flag.pad1 = false;
+           FlightModel.Flag.pad2 = false;
+
+           v11 = mRace->mVTrack->track_waypoint_type(CurrentWaypoint);
+           if (v11 == 8) {  //is Waypoint of type 8?
+              FlightModel.Flag.pad1 = true;
+           } else {
+              if (v11 < 9) {
+                if (v11 == 7) {  //waypoint of type 7?
+                   ComputerPlayer.Count2 = 3;
+                }
+vehicle_control_from_autopilot_LABEL22:
+                  LastWayPoint = CurrentWaypoint;
+                  CurrentWaypoint = mRace->mVTrack->track_waypoint_child(CurrentWaypoint);
+                  //No result found for child waypoint?
+                  if (!CurrentWaypoint) {
+                      CurrentWaypoint = mRace->mVTrack->track_waypoint_absolute_nearest(ThingData.Position);
+                  }
+
+                  v17 = 2;
+                  if (FlightModel.Flag.AutoRefuel) {
+                     currentWaypoint = CurrentWaypoint;
+                  } else {
+                    v17 = 4;
+                    if (FlightModel.Flag.AutoRepair) {
+                         currentWaypoint = CurrentWaypoint;
+                  } else {
+                    v17 = 3;
+                    if (!FlightModel.Flag.AutoRearm) {
+vehicle_control_from_autopilot_LABEL31:
+                        //controlled by computer player?
+                        if (ControlOrigin == 8) {
+                            v19 = ThingData.Position.X + ThingData.Position.Y;
+                            //The next operation first seems to be tricky in floating point
+                            //therefore initial solution: keep it in fixed point arithmetic
+                            v19Fixed = mRace->mVCalc->FloatToFixedPoint24D8(v19);
+                            //Remove the lowest 2 bits (we loose accuracy)
+                            v19Fixed = v19Fixed >> 2;
+                            //Shift back 2 bits to the left, lowest 2 bits are
+                            //set 0 value
+                            v19Fixed = v19Fixed << 2;
+                            v19Fixed &= 0xFFFFFFFC;
+
+                            if (v19Fixed == (v19Fixed - 1)) {
+                                CurrentWaypoint =
+                                        mRace->mVTrack->track_waypoint_junction_exists(CurrentWaypoint, 6);
+                            }
+                        }
+                        goto vehicle_control_from_autopilot_LABEL34;
+                    }
+
+                    currentWaypoint = CurrentWaypoint;
+                 }
+            }
+            CurrentWaypoint = mRace->mVTrack->track_waypoint_junction_exists(currentWaypoint, v17);
+            goto vehicle_control_from_autopilot_LABEL31;
+        }
+        if ( v11 != 9) {
+            goto vehicle_control_from_autopilot_LABEL22;
+        }
+        //Note 13.06.2026: Setting pad1 & pad2 flags is a bit tricky
+        //here; if something does not work reinvestigate this later, issue could
+        //be here
+        FlightModel.Flag.pad2 = true;
+    }
+
+    goto vehicle_control_from_autopilot_LABEL22;
+ }
+
+vehicle_control_from_autopilot_LABEL34:
+
+    v21 = CurrentWaypoint;
+
+    //There is some DeathMatch related code here that I will skip
+
+    //Continue with the non DeathMatch case source code
+    if (ComputerPlayer.Count1 != 0) {
+        goto vehicle_control_from_autopilot_LABEL48;
+    }
+
+    //13.06.2026: It seems there is more Autotarget related stuff I skipped
+    //right now here
+
+    if (!FlightModel.FunctionFlag.Pad9) {
+      //Skip implementation right now
+    }
+
+    if ((!ComputerPlayer.Count1) && (FlightModel.FunctionFlag.Pad4)) {
+        ComputerPlayer.Count1 = 23;
+        ComputerPlayer.Count2 = 1;
+    }
+
+vehicle_control_from_autopilot_LABEL48:
+    FlightModel.FunctionFlag.Pad4 = false;
+    if (ComputerPlayer.Count1) {
+        --ComputerPlayer.Count1;
+    }
+    if (ComputerPlayer.Count2) {
+        --ComputerPlayer.Count2;
+    }
+
+    FlightModel.Flag.AutoStop = false;
+
+    if (FlightModel.Flag.AutoRefuel) {
+        v28 = ThingData.AffectStatus & 0x10;
+    } else if (FlightModel.Flag.AutoRearm) {
+        v28 = ThingData.AffectStatus & 0x8;
+    } else {
+       if (!FlightModel.Flag.AutoRepair) {
+           goto vehicle_control_from_autopilot_LABEL60;
+       }
+       v28 = ThingData.AffectStatus & 0x20;
+    }
+
+    if (v28) {
+        FlightModel.Flag.AutoStop = true;
+    }
+
+vehicle_control_from_autopilot_LABEL60:
+    if (FlightModel.Flag.AutoStop) {
+        MovementInput.SpeedActual = -IncrementAdd.SpeedActual;
+        Momentum.DeltaX *= 0.9375f;
+        Momentum.DeltaY *= 0.9375f;
+        MovementInput.AngleXY = 0.0f;
+        if (FlightModel.Flag.AutoRefuel && Stats.Fuel >= 10000) {
+            FlightModel.Flag.AutoRefuel = false;
+            FlightModel.Flag.AutoStop = false;
+        }
+
+        if (FlightModel.Flag.AutoRearm && Stats.Weapons >= 10000) {
+            FlightModel.Flag.AutoRearm = false;
+            FlightModel.Flag.AutoStop = false;
+        }
+
+        result = 1;
+        if (FlightModel.Flag.AutoRepair) {
+            if (Stats.Health < 10000) {
+               return 1;
+            }
+            FlightModel.Flag.AutoRepair = false;
+vehicle_control_from_autopilot_LABEL135:
+            FlightModel.Flag.AutoStop = false;
+            return 1;
+        }
+        return result;
+    }
+
+    v40 = 7.109375f;
+    if (ComputerPlayer.Count1 < 20) {
+        mRace->mVTrack->track_waypoint_position_set(position, v21);
+        xy = mRace->mVCalc->angle_get_xy(ThingData.Position, position);
+        difference = mRace->mVCalc->angle_get_difference(ThingData.Movement.AngleXY, xy);
+        v40 = difference / 32.0f;
+        if ( difference < 0.0f) {
+            v40 = (difference + 0.12109375f) / 32.0f;
+        }
+    }
+    if (ComputerPlayer.Count2) {
+        MovementInput.SpeedActual = -IncrementAdd.SpeedActual;
+    } else {
+        MovementInput.SpeedActual = IncrementAdd.SpeedActual;
+    }
+
+    v45 = IncrementAdd.AngleXY;
+    v46 = ((irr::f32)(v45 > 0.0f) - v45) * 0.5f;
+    if ((v40 < v46) || (v46 = (v45 + (IncrementAdd.AngleXY / 32768.0f)) * 0.5f),
+                         v47 = v40 * 65536.0f, v46 < v40) {
+        v40 = v46;
+        v47 = v46 * 65536.0f;
+    }
+
+    if (v47 >= 0.0f) {
+        MovementInput.AngleXY = v40 + (MovementInput.AngleXY / 8.0f);
+    } else {
+        MovementInput.AngleXY = v40 - (MovementInput.AngleXY / 8.0f);
+    }
+
+vehicle_control_from_autopilot_LABEL129:
+    if (Stats.Fuel < 3000) {
+        FlightModel.Flag.AutoRefuel = true;
+    }
+
+    if (Stats.Health < 5000) {
+        FlightModel.Flag.AutoRepair = true;
+    }
+
+    result = 1;
+    if (Stats.Weapons < 3000) {
+        FlightModel.Flag.AutoRearm = true;
+        goto vehicle_control_from_autopilot_LABEL135;
+    }
+
+    return result;
+}
+
+void VVehicle::vehicle_setup_computer_character() {
+  if (ControlOrigin == 8) {
+      //13.06.2026: Implement function, I am to lazy to do it
+      //right now
+  }
+}
+
+uint8_t VVehicle::vehicle_set_autopilot_on() {
+    uint8_t result = 0;
+
+    if (!FlightModel.Flag.AutoDrive) {
+        if (FlightModel.Flag.AutoPilot) {
+            return 0;
+        } else {
+            //Activate Autopilot
+            FlightModel.Flag.AutoPilot = true;
+            FlightModel.Flag.AutoPilotSet = true;
+            LastWayPoint = CurrentWaypoint;
+            return 1;
+        }
+    }
+
+    return result;
+}
+
+uint8_t VVehicle::vehicle_set_autopilot_off() {
+    uint8_t result = 0;
+
+    if (!FlightModel.Flag.AutoDrive) {
+        if (FlightModel.Flag.AutoPilot) {
+            FlightModel.Flag.AutoPilot = false;
+            FlightModel.Flag.AutoPilotSet = true;
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    return result;
+}
+
+void VVehicle::vehicle_control() {
+    //Computer player?
+    if (ControlOrigin == 8) {
+        if (FlightModel.Flag.AutoPilot) {
+            vehicle_control_from_autopilot();
+        } else {
+            //no, autopilot is not yet active, activate it
+            CurrentWaypoint = mRace->mVTrack->track_waypoint_nearest(ThingData.Position);
+            vehicle_set_autopilot_on();
+        }
+        return;
+    } else {
+        if ((ControlOrigin & 1) != 0) {
+            vehicle_control_from_player();
+        }
+    }
+
+    return;
+}
+
 void VVehicle::UpdateCamera() {
     irr::core::vector3df newCamPos = IrrWorldCraftOrigin - IrrWorldDirVecForward * 2.5f;
     newCamPos.Y += 0.4f;
@@ -1229,6 +1568,390 @@ void VVehicle::vehicle_colide_vectors(irr::core::vector3df& delta) {
 vehicle_colide_vectors_LABEL31:
     delta.X = 0.0f;
     delta.Y = 0.0f;
+}
+
+bool VVehicle::OrientedBBoxCollision(VVehicle* vehicle1, VVehicle* vehicle2, irr::core::vector3df& collNormal, irr::f32& depth) {
+
+    vehicle1->mCraftNode->updateAbsolutePosition();
+    vehicle2->mCraftNode->updateAbsolutePosition();
+
+    VECTOR Pa;
+    irr::core::vector3df center1 = vehicle1->mCraftNode->getAbsolutePosition();
+
+    Pa.x = center1.X;
+    Pa.y = center1.Y;
+    Pa.z = center1.Z;
+
+    irr::core::aabbox3df boxLocal1 = vehicle1->mCraftNode->getBoundingBox();
+    irr::core::aabbox3df boxLocal2 = vehicle2->mCraftNode->getBoundingBox();
+
+    irr::core::vector3df ext1 = boxLocal1.getExtent();
+    VECTOR a;
+    a.x = ext1.X / 2.0f;
+    a.y = ext1.Y / 2.0f;
+    a.z = ext1.Z / 2.0f;
+
+    VECTOR Pb;
+    //irr::core::vector3df center2 = box2.getCenter();
+    irr::core::vector3df center2 = vehicle2->mCraftNode->getAbsolutePosition();
+    Pb.x = center2.X;
+    Pb.y = center2.Y;
+    Pb.z = center2.Z;
+
+    irr::core::vector3df ext2 = boxLocal2.getExtent();
+    VECTOR b;
+    b.x = ext2.X / 2.0f;
+    b.y = ext2.Y / 2.0f;
+    b.z = ext2.Z / 2.0f;
+
+    VECTOR A[3];
+    //A.x = 1;
+    //A.y = 1;
+    //A.z = 1;
+
+    irr::core::matrix4 mat = vehicle1->mCraftNode->getAbsoluteTransformation();
+
+    irr::core::vector3df origin(0.0f, 0.0f, 0.0f);
+    mat.transformVect(origin);
+
+    irr::core::vector3df hlp(1.0f, 0.0f, 0.0f);
+    mat.transformVect(hlp);
+
+    A[0].x = hlp.X - origin.X;
+    A[0].y = hlp.Y - origin.Y;
+    A[0].z = hlp.Z - origin.Z;
+
+    hlp.set(0.0f, 1.0f, 0.0f);
+    mat.transformVect(hlp);
+
+    A[1].x = hlp.X - origin.X;
+    A[1].y = hlp.Y - origin.Y;
+    A[1].z = hlp.Z - origin.Z;
+
+    hlp.set(0.0f, 0.0f, 1.0f);
+    mat.transformVect(hlp);
+
+    A[2].x = hlp.X - origin.X;
+    A[2].y = hlp.Y - origin.Y;
+    A[2].z = hlp.Z - origin.Z;
+
+
+    mat = vehicle2->mCraftNode->getAbsoluteTransformation();
+    origin.set(0.0f, 0.0f, 0.0f);
+    mat.transformVect(origin);
+
+    hlp.set(1.0f, 0.0f, 0.0f);
+    mat.transformVect(hlp);
+
+    VECTOR B[3];
+    B[0].x = hlp.X - origin.X;
+    B[0].y = hlp.Y - origin.Y;
+    B[0].z = hlp.Z - origin.Z;
+
+    hlp.set(0.0f, 1.0f, 0.0f);
+    mat.transformVect(hlp);
+
+    B[1].x = hlp.X - origin.X;
+    B[1].y = hlp.Y - origin.Y;
+    B[1].z = hlp.Z - origin.Z;
+
+    hlp.set(0.0f, 0.0f, 1.0f);
+    mat.transformVect(hlp);
+
+    B[2].x = hlp.X - origin.X;
+    B[2].y = hlp.Y - origin.Y;
+    B[2].z = hlp.Z - origin.Z;
+
+    //AABB aabox1(Pa, a);
+    //AABB aabox2(Pb, b);
+
+    //DbgCollStartVec = center1 + ext1/2.0f;
+    //DbgCollEndVec = center2 + ext2 / 2.0f;
+
+    //return aabox1.overlaps(aabox2);
+
+    //VECTOR* A, //orthonormal basis
+    //VECTOR* B //orthonormal basis
+
+    VECTOR resnormal;
+    float resdepth;
+
+    bool result = OBBOverlap(a, Pa, &A[0], b, Pb, &B[0], &resnormal, &resdepth);
+
+    if (result) {
+        collNormal.X = resnormal.x;
+        collNormal.Y = resnormal.y;
+        collNormal.Z = resnormal.z;
+        depth = resdepth;
+    }
+
+    return result;
+}
+
+//Returns true if collision, false otherwise
+bool VVehicle::VehiclesCheckForCollision(VVehicle* vehicle1, VVehicle* vehicle2,
+           irr::core::vector3df& collNormal, irr::f32& depth) {
+    //step 1 of collision detection: Sphere-To-Sphere collision detection
+    vehicle1->mCraftNode->updateAbsolutePosition();
+    vehicle2->mCraftNode->updateAbsolutePosition();
+    irr::core::vector3df pos1Obj = vehicle1->mCraftNode->getAbsolutePosition();
+    irr::core::vector3df pos2Obj = vehicle2->mCraftNode->getAbsolutePosition();
+
+    irr::f32 distSquared = (pos1Obj - pos2Obj).getLengthSQ();
+
+    //execute sphere-to-sphere collision detection, if negative return with false
+   // if (distSquared > (obj1->objBoundingBoxExtendSquared + obj2->objBoundingBoxExtendSquared))
+   //     return false;
+
+    //Step 2: execute AABounding box collision using Irrlicht
+    //first update axis aligned bounding boxes of both objects
+   // obj1->objBoundingBox = obj1->sceneNode->getTransformedBoundingBox();
+   // obj2->objBoundingBox = obj2->sceneNode->getTransformedBoundingBox();
+
+   // DbgRunCollisionDetectionStage2 = 1.0f;
+/*    irr::core::vector3df mtv;
+
+    if (returnMTV(obj1, obj2, mtv)) {
+        collNormal = mtv;
+        return true;
+    }*/
+/*
+    if (obj1->objBoundingBox.intersectsWithBox(obj2->objBoundingBox))
+    {
+        //for normal and collision depth simply assume sphere-sphere collision again
+        collNormal = (pos2Obj - pos1Obj);
+        depth = (collNormal.getLength() - sqrt(obj1->objBoundingBoxExtendSquared) - sqrt(obj2->objBoundingBoxExtendSquared));
+
+        collNormal.normalize();
+
+        return true;
+    }*/
+
+    if (OrientedBBoxCollision(vehicle1, vehicle2, collNormal, depth)) {
+        return true;
+    }
+
+   return false;
+}
+
+void VVehicle::vehicle_post_process() {
+    return;
+    irr::f32 speedFixed;
+
+    /********************************
+     * Fuel reduction due to moving *
+     ********************************/
+
+    speedFixed = mRace->mVCalc->FloatToFixedPoint8D8(ThingData.Movement.SpeedActual) + 39;
+    Stats.Fuel -= (speedFixed / 40);
+
+    if (Stats.Fuel < 0) {
+        Stats.Fuel = 0;
+    }
+
+    Conditions.FuelUsed += (speedFixed / 40);
+}
+
+uint8_t VVehicle::vehicle_colide_final_check_sean(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta) {
+     std::vector<VVehicle*>::iterator it;
+     irr::f32 v8;
+     irr::f32 v9;
+     irr::f32 v10;
+     irr::f32 v16;
+     irr::f32 v12;
+     irr::f32 v14;
+     irr::f32 v15;
+     irr::f32 v19;
+     irr::f32 xy;
+     irr::f32 v13;
+     irr::f32 difference;
+     irr::core::vector3df positionFrom;
+     bool collided = false;
+
+     v16 = this->ThingData.Position.Z;
+     v14 = this->ThingData.Position.X + delta.X;
+     v15 = this->ThingData.Position.Y + delta.Y;
+     positionFrom.X = 0.0f;
+     positionFrom.Y = 0.0f;
+     positionFrom.Z = 0.0f;
+
+     for (it = vehicleVec.begin(); it != vehicleVec.end(); ++it) {
+         if ((*it) != this) {
+             v8 = fabs(((*it)->ThingData.Position.Z - v16));
+             if (v8 < 0.390625f) {
+                v9 = fabs(((*it)->ThingData.Position.X - v14));
+                if (v9 < 0.3515625f) {
+                    v10 = fabs(((*it)->ThingData.Position.Y - v15));
+                    if (v10 < 0.3515625f) {
+                        collided = true;
+                        break;
+                    }
+                }
+             }
+         }
+     }
+
+     if (!collided) {
+         mDbgColl = 0.0f;
+         return 0;
+     }
+
+     positionFrom.X = -v9;
+     positionFrom.Y = -v10;
+     //positionFrom.Z = v8;
+
+    //we are collided right now with a craft
+    xy = mRace->mVCalc->angle_get_xy(positionFrom, delta);
+    difference = mRace->mVCalc->angle_get_difference(this->ThingData.Movement.AngleXY, xy);
+    v19 = difference;
+
+    if (fabs(v19) < 0.00390625f) {
+       // v19 = 0.00390625f;
+    }
+
+    v12 = fabs(v19);
+
+    if (v12 >= 0.00390625f) {
+        v13 = -0.078125f * (v19 / v12);
+    } else {
+        v13 = 0.0f;
+    }
+
+    mRace->mVCalc->move_xyz(delta, xy + 90.0f, 0.0f, v13);
+    mDbgColl = 1.0f;
+    return 1;
+}
+
+uint8_t VVehicle::vehicle_colide_my_attempt(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta) {
+     std::vector<VVehicle*>::iterator it;
+     irr::core::vector3df collNormal;
+     irr::f32 collDepth;
+
+    mDbgColl = 0.0f;
+
+     for (it = vehicleVec.begin(); it != vehicleVec.end(); ++it) {
+         if ((*it) != this) {
+             //did this 2 vehicles collide?
+             if (VehiclesCheckForCollision(this, (*it), collNormal, collDepth)) {
+                 //collision
+                 collNormal.normalize();
+                 delta += collNormal * 0.1f;
+
+                 this->ThingData.Position -= collNormal * collDepth * 0.5f;
+                 (*it)->ThingData.Position += collNormal * collDepth * 0.5f;
+             }
+
+         }
+     }
+
+     return 0;
+/*
+    v12 = fabs(v19);
+
+    if (v12 >= 0.00390625f) {
+        v13 = -0.078125f * (v19 / v12);
+    } else {
+        v13 = 0.0f;
+    }
+
+    mRace->mVCalc->move_xyz(delta, xy + 90.0f, 0.0f, v13);
+    mDbgColl = 1.0f;
+    return 1;*/
+}
+
+uint8_t VVehicle::vehicle_colide(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta) {
+    std::vector<VVehicle*>::iterator it;
+    irr:f32 Zpos;
+    irr::f32 v10;
+    irr::f32 v5 = 0.0f;
+    irr::core::vector3df position2;  //holds the collision point if a collision occurs
+    uint16_t v6 = 0;
+    uint16_t v8 = 0;
+    irr::core::vector3df v25;
+    irr::core::vector3df v26;
+    irr::core::vector3df u1;
+    VVehicle* collVehicle = nullptr;
+    irr::f32 v15;
+    irr::f32 v17;
+    irr::f32 squared_xy;
+
+    position2.X = 0.0f;
+    position2.Y = 0.0f;
+    position2.Z = 0.0f;
+    u1.X = 0.0f;
+    u1.Y = 0.0f;
+    u1.Z = 0.0f;
+    v25.X = 0.0f;
+    v25.Y = 0.0f;
+    v25.Z = 0.0f;
+    v26.X = 0.0f;
+    v26.Y = 0.0f;
+    v26.Z = 0.0f;
+
+    for (it = vehicleVec.begin(); it != vehicleVec.end(); ++it) {
+        if ((*it) != this) {
+            Zpos = ((*it)->ThingData.Position.Z);
+            v10 = this->ThingData.Position.Z;
+            if ((Zpos - v10) < 0.0f) {
+               if ((v10 - Zpos) < 0.390625f) {
+vehicle_colide_LABEL7:
+            if ((fabs((*it)->ThingData.Position.X - this->ThingData.Position.X) < 0.00390625f) &&
+                (fabs((*it)->ThingData.Position.Y - this->ThingData.Position.Y) < 0.00390625f)) {
+                delta.X = 0.234375f;
+                delta.Y = 0.234375f;
+            }
+            if (mRace->mVCalc->collide_on_circle((*it)->ThingData.Position, this->ThingData.Position,
+                                                 delta, 0.234375f, position2)) {
+
+               if (v6) {
+                  squared_xy = mRace->mVCalc->distance_get_squared_xy(this->ThingData.Position, position2);
+                  if (squared_xy < v5) {
+                      v5 = squared_xy;
+                      v25 = position2;
+                      collVehicle = (*it);
+                  }
+               } else {
+                     v25 = position2;
+                     collVehicle = (*it);
+                     v5 = mRace->mVCalc->distance_get_squared_xy(this->ThingData.Position, position2);
+               }
+               ++v6;
+            }
+        }
+    } else if ((Zpos - v10) < 0.390625f) {
+                goto vehicle_colide_LABEL7;
+            }
+        }
+        v8 = v6;
+    }
+
+    //no collision, return immediately
+    if (!v8) {
+        return 0;
+    }
+
+    //just to make sure that we can not crash!
+    if (collVehicle == nullptr) {
+        return 0;
+    }
+
+    u1.X = (collVehicle->Momentum.DeltaX / 4.0f);
+    u1.Y = (collVehicle->Momentum.DeltaY / 4.0f);
+    mRace->mVCalc->collide_inelastic(collVehicle->ThingData.Position, this->ThingData.Position,
+                                     u1, delta, v26, delta, collVehicle->Bump);
+
+    //Deal "bump damage" to vehicle that we collided with
+    v15 = fabs(collVehicle->Bump.X);
+    collVehicle->mBumpDamage += v15;
+
+    v17 = fabs(collVehicle->Bump.Y);
+    collVehicle->mBumpDamage += v17;
+
+    //Deal "bump damage" to ourself as well
+    mBumpDamage += v15;
+    mBumpDamage += v17;
+
+    return 1;
 }
 
 void VVehicle::UpdateSceneNode() {

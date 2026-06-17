@@ -34,7 +34,7 @@ namespace Entity {
               ExtraFuel, FuelFull, DoubleFuel,
               MinigunUpgrade, MissileUpgrade, BoosterUpgrade,
               WallSegment,
-              WaypointFuel, WaypointAmmo, WaypointShield, WaypointSpecial1, WaypointSpecial2, WaypointSpecial3, WaypointFast, WaypointSlow, WaypointShortcut,
+              WaypointFuel, WaypointAmmo, WaypointShield, WaypointUnknownVal5, WaypointSpecial1, WaypointSpecial2, WaypointSpecial3, WaypointFast, WaypointSlow, WaypointShortcut,
               RecoveryTruck,
               SteamStrong, SteamLight, Cone, Checkpoint,
               MorphSource1, MorphSource2, MorphOnce, MorphPermanent,
