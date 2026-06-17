@@ -269,6 +269,13 @@ private:
     void vehicle_set_camera();
     void vehicle_post_process();
 
+    bool OrientedBBoxCollision(VVehicle* vehicle1, VVehicle* vehicle2,
+                                        irr::core::vector3df& collNormal, irr::f32& depth);
+
+    uint8_t vehicle_colide_my_attempt(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta);
+    bool VehiclesCheckForCollision(VVehicle* vehicle1, VVehicle* vehicle2,
+               irr::core::vector3df& collNormal, irr::f32& depth);
+
     //Below are my functions and Members I need
     //a local coordinate system point defined on the players craft
     irr::core::vector3d<irr::f32> IrrLocalCraftFrontPnt;

@@ -44,6 +44,7 @@
 #include "debug/structs/thingvehicle.h"
 #include "debug/structs/cam.h"
 #include "debug/datatools.h"
+#include "../utils/boundingbox/collision.h"
 
 //according to the emulator this function is supposed
 //to run periodically every ~45 ms
@@ -181,7 +182,8 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         //"vehicle_colide_final_check_sean". I commented my implementation out which is currently
         //not tested, because I can not compare and debug it with the original game as a reference.
         //vehicle_colide(mRace->mVanillaCraftVec, delta);
-        vehicle_colide_final_check_sean(mRace->mVanillaCraftVec, delta);
+        //vehicle_colide_final_check_sean(mRace->mVanillaCraftVec, delta);
+        vehicle_colide_my_attempt(mRace->mVanillaCraftVec, delta);
         vehicle_move_altitude(delta);
         vehicle_move_roll(delta);
         vehicle_move_tilt(delta);
@@ -1568,6 +1570,170 @@ vehicle_colide_vectors_LABEL31:
     delta.Y = 0.0f;
 }
 
+bool VVehicle::OrientedBBoxCollision(VVehicle* vehicle1, VVehicle* vehicle2, irr::core::vector3df& collNormal, irr::f32& depth) {
+
+    vehicle1->mCraftNode->updateAbsolutePosition();
+    vehicle2->mCraftNode->updateAbsolutePosition();
+
+    VECTOR Pa;
+    irr::core::vector3df center1 = vehicle1->mCraftNode->getAbsolutePosition();
+
+    Pa.x = center1.X;
+    Pa.y = center1.Y;
+    Pa.z = center1.Z;
+
+    irr::core::aabbox3df boxLocal1 = vehicle1->mCraftNode->getBoundingBox();
+    irr::core::aabbox3df boxLocal2 = vehicle2->mCraftNode->getBoundingBox();
+
+    irr::core::vector3df ext1 = boxLocal1.getExtent();
+    VECTOR a;
+    a.x = ext1.X / 2.0f;
+    a.y = ext1.Y / 2.0f;
+    a.z = ext1.Z / 2.0f;
+
+    VECTOR Pb;
+    //irr::core::vector3df center2 = box2.getCenter();
+    irr::core::vector3df center2 = vehicle2->mCraftNode->getAbsolutePosition();
+    Pb.x = center2.X;
+    Pb.y = center2.Y;
+    Pb.z = center2.Z;
+
+    irr::core::vector3df ext2 = boxLocal2.getExtent();
+    VECTOR b;
+    b.x = ext2.X / 2.0f;
+    b.y = ext2.Y / 2.0f;
+    b.z = ext2.Z / 2.0f;
+
+    VECTOR A[3];
+    //A.x = 1;
+    //A.y = 1;
+    //A.z = 1;
+
+    irr::core::matrix4 mat = vehicle1->mCraftNode->getAbsoluteTransformation();
+
+    irr::core::vector3df origin(0.0f, 0.0f, 0.0f);
+    mat.transformVect(origin);
+
+    irr::core::vector3df hlp(1.0f, 0.0f, 0.0f);
+    mat.transformVect(hlp);
+
+    A[0].x = hlp.X - origin.X;
+    A[0].y = hlp.Y - origin.Y;
+    A[0].z = hlp.Z - origin.Z;
+
+    hlp.set(0.0f, 1.0f, 0.0f);
+    mat.transformVect(hlp);
+
+    A[1].x = hlp.X - origin.X;
+    A[1].y = hlp.Y - origin.Y;
+    A[1].z = hlp.Z - origin.Z;
+
+    hlp.set(0.0f, 0.0f, 1.0f);
+    mat.transformVect(hlp);
+
+    A[2].x = hlp.X - origin.X;
+    A[2].y = hlp.Y - origin.Y;
+    A[2].z = hlp.Z - origin.Z;
+
+
+    mat = vehicle2->mCraftNode->getAbsoluteTransformation();
+    origin.set(0.0f, 0.0f, 0.0f);
+    mat.transformVect(origin);
+
+    hlp.set(1.0f, 0.0f, 0.0f);
+    mat.transformVect(hlp);
+
+    VECTOR B[3];
+    B[0].x = hlp.X - origin.X;
+    B[0].y = hlp.Y - origin.Y;
+    B[0].z = hlp.Z - origin.Z;
+
+    hlp.set(0.0f, 1.0f, 0.0f);
+    mat.transformVect(hlp);
+
+    B[1].x = hlp.X - origin.X;
+    B[1].y = hlp.Y - origin.Y;
+    B[1].z = hlp.Z - origin.Z;
+
+    hlp.set(0.0f, 0.0f, 1.0f);
+    mat.transformVect(hlp);
+
+    B[2].x = hlp.X - origin.X;
+    B[2].y = hlp.Y - origin.Y;
+    B[2].z = hlp.Z - origin.Z;
+
+    //AABB aabox1(Pa, a);
+    //AABB aabox2(Pb, b);
+
+    //DbgCollStartVec = center1 + ext1/2.0f;
+    //DbgCollEndVec = center2 + ext2 / 2.0f;
+
+    //return aabox1.overlaps(aabox2);
+
+    //VECTOR* A, //orthonormal basis
+    //VECTOR* B //orthonormal basis
+
+    VECTOR resnormal;
+    float resdepth;
+
+    bool result = OBBOverlap(a, Pa, &A[0], b, Pb, &B[0], &resnormal, &resdepth);
+
+    if (result) {
+        collNormal.X = resnormal.x;
+        collNormal.Y = resnormal.y;
+        collNormal.Z = resnormal.z;
+        depth = resdepth;
+    }
+
+    return result;
+}
+
+//Returns true if collision, false otherwise
+bool VVehicle::VehiclesCheckForCollision(VVehicle* vehicle1, VVehicle* vehicle2,
+           irr::core::vector3df& collNormal, irr::f32& depth) {
+    //step 1 of collision detection: Sphere-To-Sphere collision detection
+    vehicle1->mCraftNode->updateAbsolutePosition();
+    vehicle2->mCraftNode->updateAbsolutePosition();
+    irr::core::vector3df pos1Obj = vehicle1->mCraftNode->getAbsolutePosition();
+    irr::core::vector3df pos2Obj = vehicle2->mCraftNode->getAbsolutePosition();
+
+    irr::f32 distSquared = (pos1Obj - pos2Obj).getLengthSQ();
+
+    //execute sphere-to-sphere collision detection, if negative return with false
+   // if (distSquared > (obj1->objBoundingBoxExtendSquared + obj2->objBoundingBoxExtendSquared))
+   //     return false;
+
+    //Step 2: execute AABounding box collision using Irrlicht
+    //first update axis aligned bounding boxes of both objects
+   // obj1->objBoundingBox = obj1->sceneNode->getTransformedBoundingBox();
+   // obj2->objBoundingBox = obj2->sceneNode->getTransformedBoundingBox();
+
+   // DbgRunCollisionDetectionStage2 = 1.0f;
+/*    irr::core::vector3df mtv;
+
+    if (returnMTV(obj1, obj2, mtv)) {
+        collNormal = mtv;
+        return true;
+    }*/
+/*
+    if (obj1->objBoundingBox.intersectsWithBox(obj2->objBoundingBox))
+    {
+        //for normal and collision depth simply assume sphere-sphere collision again
+        collNormal = (pos2Obj - pos1Obj);
+        depth = (collNormal.getLength() - sqrt(obj1->objBoundingBoxExtendSquared) - sqrt(obj2->objBoundingBoxExtendSquared));
+
+        collNormal.normalize();
+
+        return true;
+    }*/
+
+    if (OrientedBBoxCollision(vehicle1, vehicle2, collNormal, depth)) {
+        return true;
+    }
+
+   return false;
+}
+
 void VVehicle::vehicle_post_process() {
     return;
     irr::f32 speedFixed;
@@ -1654,6 +1820,43 @@ uint8_t VVehicle::vehicle_colide_final_check_sean(std::vector<VVehicle*> &vehicl
     mRace->mVCalc->move_xyz(delta, xy + 90.0f, 0.0f, v13);
     mDbgColl = 1.0f;
     return 1;
+}
+
+uint8_t VVehicle::vehicle_colide_my_attempt(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta) {
+     std::vector<VVehicle*>::iterator it;
+     irr::core::vector3df collNormal;
+     irr::f32 collDepth;
+
+    mDbgColl = 0.0f;
+
+     for (it = vehicleVec.begin(); it != vehicleVec.end(); ++it) {
+         if ((*it) != this) {
+             //did this 2 vehicles collide?
+             if (VehiclesCheckForCollision(this, (*it), collNormal, collDepth)) {
+                 //collision
+                 collNormal.normalize();
+                 delta += collNormal * 0.1f;
+
+                 this->ThingData.Position -= collNormal * collDepth * 0.5f;
+                 (*it)->ThingData.Position += collNormal * collDepth * 0.5f;
+             }
+
+         }
+     }
+
+     return 0;
+/*
+    v12 = fabs(v19);
+
+    if (v12 >= 0.00390625f) {
+        v13 = -0.078125f * (v19 / v12);
+    } else {
+        v13 = 0.0f;
+    }
+
+    mRace->mVCalc->move_xyz(delta, xy + 90.0f, 0.0f, v13);
+    mDbgColl = 1.0f;
+    return 1;*/
 }
 
 uint8_t VVehicle::vehicle_colide(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta) {
