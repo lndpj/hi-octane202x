@@ -62,7 +62,7 @@ Collectable::Collectable(InfrastructureBase* infra, Entity::EntityType type, vec
 }
 
 irr::f32 Collectable::GetCollectableCenterHeight() {
-    return (CollectableSize_h * 1.25f);
+    return (CollectableSize_h);
 }
 
 void Collectable::SetupSceneNode(Entity::EntityType type, irr::core::vector3df pos) {
@@ -105,11 +105,20 @@ irr::core::vector2df Collectable::GetMyBezierCurvePlaningCoord(irr::core::vector
 //allows to update position if collectable
 //for example used by the collectablespawner
 //Important note: does NOT update the position of an
-//underlying entityItem, only useful for type 2 collectable!
-void Collectable::UpdatePosition(irr::core::vector3df newPostion) {
-    this->Position = newPostion;
+//underlying entityItem!
+void Collectable::UpdatePosition(irr::core::vector3df newPosition) {
+    //Position is the center of the BillboardSceneNode
+    //Position in the level file could be the bottom location at the surface
+    //therefore we need to add the height of the billboard to the Y coordinate
+    newPosition.Y += GetCollectableCenterHeight();
+
+    this->Position = newPosition;
 
     this->billSceneNode->setPosition(this->Position);
+
+    //update bounding box!
+    this->billSceneNode->updateAbsolutePosition();
+    this->boundingBox = this->billSceneNode->getTransformedBoundingBox();
 }
 
 void Collectable::SetVisible(bool visible) {

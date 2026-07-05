@@ -467,7 +467,7 @@ void DbgInterface::CompareVehicleStatePlayerWithMemDump(VVehicle& compareVehicle
 
     CompareTwoFloats(std::string("Friction"), compareVehicle.mFriction, compareDump->ThingVehicle->Friction->mFloatValue);
     CompareTwoFloats(std::string("FrictionLimit"), compareVehicle.mFrictionLimit, compareDump->ThingVehicle->FrictionLimit->mFloatValue);
-    CompareTwoFloats(std::string("ThrustEffectiveness"), compareVehicle.mThrustEffectiveness, compareDump->ThingVehicle->ThrustEffectiveness->mFloatValue);
+    CompareTwoInt16s(std::string("ThrustEffectiveness"), compareVehicle.mThrustEffectiveness, compareDump->ThingVehicle->ThrustEffectiveness->mRawValue);
     CompareTwoFloats(std::string("SideslipToThrust"), compareVehicle.mSideslipToThrust, compareDump->ThingVehicle->SideslipToThrust->mFloatValue);
     CompareTwoFloats(std::string("SideslipFriction"), compareVehicle.mSideslipFriction, compareDump->ThingVehicle->SideslipFriction->mFloatValue);
 
@@ -542,7 +542,7 @@ void DbgInterface::CompareVehicleStateBetweenMemDumps(MemDump* dump1, MemDump* d
 
     CompareTwoFloats(std::string("Friction"), dump1->ThingVehicle->Friction->mFloatValue, dump2->ThingVehicle->Friction->mFloatValue);
     CompareTwoFloats(std::string("FrictionLimit"), dump1->ThingVehicle->FrictionLimit->mFloatValue, dump2->ThingVehicle->FrictionLimit->mFloatValue);
-    CompareTwoFloats(std::string("ThrustEffectiveness"), dump1->ThingVehicle->ThrustEffectiveness->mFloatValue, dump2->ThingVehicle->ThrustEffectiveness->mFloatValue);
+    CompareTwoInt16s(std::string("ThrustEffectiveness"), dump1->ThingVehicle->ThrustEffectiveness->mRawValue, dump2->ThingVehicle->ThrustEffectiveness->mRawValue);
     CompareTwoFloats(std::string("SideslipToThrust"), dump1->ThingVehicle->SideslipToThrust->mFloatValue, dump2->ThingVehicle->SideslipToThrust->mFloatValue);
     CompareTwoFloats(std::string("SideslipFriction"), dump1->ThingVehicle->SideslipFriction->mFloatValue, dump2->ThingVehicle->SideslipFriction->mFloatValue);
 
@@ -610,7 +610,7 @@ void DbgInterface::SetVehicleStatePlayerFromMemDump(VVehicle& targetVehicle, Mem
     targetVehicle.Momentum.DeltaY = srcDump->ThingVehicle->Momentum->DeltaY->mFloatValue;
     targetVehicle.mFriction = srcDump->ThingVehicle->Friction->mFloatValue;
     targetVehicle.mFrictionLimit = srcDump->ThingVehicle->FrictionLimit->mFloatValue;
-    targetVehicle.mThrustEffectiveness = srcDump->ThingVehicle->ThrustEffectiveness->mFloatValue;
+    targetVehicle.mThrustEffectiveness = srcDump->ThingVehicle->ThrustEffectiveness->mRawValue;
     targetVehicle.mSideslipToThrust = srcDump->ThingVehicle->SideslipToThrust->mFloatValue;
     targetVehicle.mSideslipFriction = srcDump->ThingVehicle->SideslipFriction->mFloatValue;
 

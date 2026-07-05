@@ -157,7 +157,7 @@ public:
 
     FixedPointInt16_8R8Num* Friction = nullptr;
     FixedPointInt16_8R8Num* FrictionLimit = nullptr;
-    FixedPointInt16_8R8Num* ThrustEffectiveness = nullptr;
+    Int16_Num* ThrustEffectiveness = nullptr;
     FixedPointInt16_8R8Num* Bounce = nullptr;
     FixedPointInt16_8R8Num* MaximumZpos = nullptr;
     FixedPointInt16_8R8Num* SideslipFriction = nullptr;

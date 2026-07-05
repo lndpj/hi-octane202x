@@ -142,6 +142,7 @@ class VVehicle;
 class VTrack;
 class VCamera;
 class DbgInterface;
+class SpriteThing;
 
 class Race {
 public:
@@ -150,9 +151,6 @@ public:
          bool skipStart);
 
     ~Race();
-
-    VVehicle* mVCraft = nullptr;
-    VVehicle* mVCraft2 = nullptr;
 
     std::vector<VVehicle*> mVanillaCraftVec;
 
@@ -181,8 +179,6 @@ public:
 
     std::vector<irr::core::vector3df> mPlayerStartLocations;
 
-    void HandleCraftHeightMapCollisions(irr::f32 deltaTime, PhysicsObject* whichObj);
-
     void CallRecoveryVehicleForHelp(Player* whichPlayer);
 
     //returns an available recovery vehicle for physics reset
@@ -206,14 +202,14 @@ public:
     std::vector<LineStruct*> *ENTWallsegmentsLine_List = nullptr;
 
     irr::f32 GetAbsOrientationAngleFromDirectionVec(irr::core::vector3df dirVector, bool correctAngleOutsideRange = true);
-    void CheckPlayerCrossedCheckPoint(Player* whichPlayer, irr::core::aabbox3d<irr::f32> playerBox);
+    void CheckPlayerCrossedCheckPoint(VVehicle* whichPlayer);
 
     //attacker is the enemy player that does damage the player targetToHit
     //for damage that an entity does cause (for example steamFountain) attacker is set
     //to nullptr
     void DamagePlayer(Player* targetToHit, irr::f32 damageVal, irr::u8 damageType, Player* attacker = nullptr);
 
-    Player* currPlayerFollow = nullptr;
+    VVehicle* currPlayerFollow = nullptr;
 
     //handles the columns (made of blocks)
     //of the level
@@ -248,7 +244,7 @@ public:
 
     //this list contains all players that have already
     //finished the race in the order how the have finished
-    std::vector<Player*> playerRaceFinishedVec;
+    std::vector<VVehicle*> playerRaceFinishedVec;
 
     //object for pathfinding and services
     Path* mPath = nullptr;
@@ -273,7 +269,7 @@ public:
     //vector of craft/missile trigger regions
     std::vector<MapTileRegionStruct*> mTriggerRegionVec;
 
-    void PlayerEnteredCraftTriggerRegion(Player* whichPlayer, MapTileRegionStruct* whichRegion);
+    void PlayerEnteredCraftTriggerRegion(VVehicle* whichPlayer, MapTileRegionStruct* whichRegion);
     void PlayerMissileHitMissileTrigger(Player* whichPlayer, MapTileRegionStruct* whichRegion);
     void TimedTriggerOccured(Timer* whichTimer);
 
@@ -306,6 +302,8 @@ public:
 
     //my texture loader
     TextureLoader *mTexLoader = nullptr;
+
+    int dbgValPrint;
 
     //stores the detected minimap race track positions
     //referenced to Terrain tile coordinates from level
@@ -341,15 +339,23 @@ public:
 
     irr::scene::ICameraSceneNode* vanTestCam = nullptr;
 
+    std::vector<SpriteThing*> mSpriteThingList;
+
+    void AddSpriteThing(SpriteThing* newSpriteThing);
+
 private:
     std::string mLevelRootPath;
     std::string mLevelName;
+
+    void UpdateSpriteThings(irr::f32 deltaTime);
 
     void HandleExitRace();
 
     //Returns true in case of success, False
     //otherwise
     bool SetupSky();
+
+    void InitialUpdateCollectablePositions();
 
     irr::s32 shaderMaterial1;
 
@@ -384,7 +390,7 @@ private:
     //vector for player physic objects
     std::vector<PhysicsObject*> mPlayerPhysicObjVec;
 
-    std::vector<Player*> playerRanking;
+    std::vector<VVehicle*> playerRanking;
 
     irr::scene::IMeshSceneNode* testcube = nullptr;
 
@@ -477,12 +483,12 @@ private:
     void createCheckpointMeshData(CheckPointInfoStruct &newStruct);
     std::vector<CheckPointInfoStruct*> *checkPointVec = nullptr;
 
-    void UpdatePlayerDistanceToNextCheckpoint(Player* whichPlayer);
+    void UpdatePlayerDistanceToNextCheckpoint(VVehicle* whichPlayer);
     void UpdatePlayerRacePositionRanking();
-    void UpdatePlayerRacePositionRankingHelper2(std::vector< pair <irr::s32, Player*> > vecNextCheckPointExpected);
-    void UpdatePlayerRacePositionRankingHelper3(std::vector< pair <irr::f32, Player*> > vecRemainingDistanceToNextCheckpoint);
+    void UpdatePlayerRacePositionRankingHelper2(std::vector< pair <irr::s32, VVehicle*> > vecNextCheckPointExpected);
+    void UpdatePlayerRacePositionRankingHelper3(std::vector< pair <irr::f32, VVehicle*> > vecRemainingDistanceToNextCheckpoint);
 
-    void CheckPlayerCollidedCollectible(Player* player, irr::core::aabbox3d<irr::f32> playerBox);
+    void CheckPlayerCollidedCollectible(VVehicle* player);
 
     //my vector of SteamFountains
     std::vector<SteamFountain*>* steamFountainVec = nullptr;

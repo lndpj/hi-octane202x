@@ -767,6 +767,41 @@ int8_t VCalculations::map_colide_direction_xy(irr::core::vector3df oldPosition, 
     return (result & 0xF7);
 }
 
+//Function programmed to have similar behavior as function "map_altitude_lowest"
+//in original game.
+//Input position parameter: Enter coordinates according to vanilla game coordinate system
+irr::f32 VCalculations::map_altitude_lowest(irr::core::vector3df position) {
+    irr::f32 v2;
+    irr::f32 result;
+
+    v2 = collide_map(position.X, position.Y);
+    result = v2;
+
+    //Is the a column present?
+    //what cell are we in?
+    vector2di cell((irr::s32)(position.X / this->mLevelTerrain->segmentSize),
+                   (irr::s32)(position.Y / this->mLevelTerrain->segmentSize));
+
+    mLevelTerrain->ForceTileGridCoordRange(cell);
+
+    MapEntry* entry = mLevelFile->pMap[cell.X][cell.Y];
+
+    uint8_t blockIdx;
+
+    if (entry->get_Column() != nullptr) {
+        for (blockIdx = 0; blockIdx < 8; blockIdx++) {
+            if (entry->get_Column()->get_BlockId_forBlockNrFromBottom(blockIdx) == 0) {
+                break;
+            }
+
+            v2 += 1.0f;
+            result = v2;
+        }
+    }
+
+    return result;
+}
+
 int8_t VCalculations::map_colide_4point(irr::core::vector3df position, irr::f32 size_x,
                                          irr::f32 size_y) {
     irr::core::vector3df positiona;

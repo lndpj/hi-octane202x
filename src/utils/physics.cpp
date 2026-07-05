@@ -1015,7 +1015,7 @@ void Physics::AdvancePhysicsTime(const irr::f32 frameDeltaTime) {
                     (*it)->sceneNode->updateAbsolutePosition();
 
                     //execute craft terrain height map collisions
-                    this->mParentRace->HandleCraftHeightMapCollisions(dt, (*it));
+                    //this->mParentRace->HandleCraftHeightMapCollisions(dt, (*it));
 
                     (*it)->previousPhysicState = (*it)->physicState;
                     this->integrate((*it), (*it)->physicState, t, dt);

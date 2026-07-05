@@ -54,6 +54,7 @@
 #include "draw/drawdebug.h"
 #include "draw/minimap.h"
 #include "resources/assets.h"
+#include "vanilla/spritething.h"
 #include "models/steamfountain.h"
 #include "scenenodes/CLensFlareSceneNode.h"
 
@@ -291,6 +292,7 @@ Race::Race(Game* parentGame, MyMusicStream* gameMusicPlayerParam,
     mDbgWaypntSceneNodeVec.clear();
 
     mPlayerVec.clear();
+    mVanillaCraftVec.clear();
     mPlayerPhysicObjVec.clear();
     playerRaceFinishedVec.clear();
     mTriggerRegionVec.clear();
@@ -298,6 +300,8 @@ Race::Race(Game* parentGame, MyMusicStream* gameMusicPlayerParam,
     mTimerVec.clear();
     mExplosionEntityVec.clear();
     mType2CollectableForCleanupLater.clear();
+
+    mSpriteThingList.clear();
 
     //for the start of the race we want to trigger
     //target group 1 once
@@ -340,6 +344,33 @@ Race::Race(Game* parentGame, MyMusicStream* gameMusicPlayerParam,
     testcube->setMaterialTexture(0, this->mGame->backgnd);
     testcube->setMaterialFlag(irr::video::EMF_LIGHTING, true);
     testcube->getMaterial(0).EmissiveColor = irr::video::SColor(255, 255, 0, 0);*/
+}
+
+void Race::AddSpriteThing(SpriteThing* newSpriteThing) {
+    mSpriteThingList.push_back(newSpriteThing);
+}
+
+void Race::UpdateSpriteThings(irr::f32 deltaTime) {
+    std::vector<SpriteThing*>::iterator it;
+    SpriteThing* pntr;
+
+    //first cleanup SpriteThings that have already
+    //expired
+    for (it = this->mSpriteThingList.begin(); it != this->mSpriteThingList.end();) {
+          if ((*it)->IsExpired) {
+            pntr = (*it);
+            //we need to clean this one up
+            it = mSpriteThingList.erase(it);
+
+            //delete the object itself
+            delete pntr;
+          } else ++it;
+    }
+
+    //update all remaining SpriteThings
+    for (it = mSpriteThingList.begin(); it != mSpriteThingList.end(); ++it) {
+        (*it)->Update(deltaTime);
+    }
 }
 
 void Race::IrrlichtStats(char* text) {
@@ -636,11 +667,11 @@ bool Race::GetDebugFlag(irr::u8 debugFlag) {
 
 Race::~Race() {
     //unregister existing HUD in all players
-    std::vector<Player*>::iterator it;
+    std::vector<VVehicle*>::iterator it;
 
-    for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
-        (*it)->SetMyHUD(nullptr);
-    }
+    //TODO: for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
+    //    (*it)->SetMyHUD(nullptr);
+    //}
 
     if (mVDbgInterface != nullptr) {
         delete mVDbgInterface;
@@ -680,24 +711,14 @@ Race::~Race() {
     }
 
     //free all players
-    Player* playerPntr;
+    VVehicle* playerPntr;
 
-    for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end();) {
+    for (it = this->mVanillaCraftVec.begin(); it != this->mVanillaCraftVec.end();) {
         playerPntr = (*it);
 
-        it = mPlayerVec.erase(it);
+        it = mVanillaCraftVec.erase(it);
 
         delete playerPntr;
-    }
-
-    if (mVCraft != nullptr) {
-        delete mVCraft;
-        mVCraft = nullptr;
-    }
-
-    if (mVCraft2 != nullptr) {
-        delete mVCraft2;
-        mVCraft2 = nullptr;
     }
 
     //remove camera SceneNode
@@ -1284,7 +1305,7 @@ void Race::DamagePlayer(Player* targetToHit, irr::f32 damageVal, irr::u8 damageT
 }
 
 //Stage 3 of player race ranking sorting: Sort by ascending remaining distance to next checkpoint
-void Race::UpdatePlayerRacePositionRankingHelper3(vector< pair <irr::f32, Player*> > vecRemainingDistanceToNextCheckpoint) {
+void Race::UpdatePlayerRacePositionRankingHelper3(vector< pair <irr::f32, VVehicle*> > vecRemainingDistanceToNextCheckpoint) {
 
     //sort vector pairs in descending value for remaining distance to next checkpoint
    std::sort(vecRemainingDistanceToNextCheckpoint.rbegin(), vecRemainingDistanceToNextCheckpoint.rend());
@@ -1300,7 +1321,7 @@ void Race::UpdatePlayerRacePositionRankingHelper3(vector< pair <irr::f32, Player
 }
 
 //Stage 2 of player race ranking sorting: Sort by ascending number of next expected checkpoint value
-void Race::UpdatePlayerRacePositionRankingHelper2(vector< pair <irr::s32, Player*> > vecNextCheckPointExpected) {
+void Race::UpdatePlayerRacePositionRankingHelper2(vector< pair <irr::s32, VVehicle*> > vecNextCheckPointExpected) {
 
     //sort vector pairs in ascending value of next expected checkpoint
     std::sort(vecNextCheckPointExpected.begin(), vecNextCheckPointExpected.end());
@@ -1310,12 +1331,12 @@ void Race::UpdatePlayerRacePositionRankingHelper2(vector< pair <irr::s32, Player
     auto it3 = vecNextCheckPointExpected.rbegin();
 
     irr::s32 nextExpectedCheckPointValue;
-    Player* playerPntr;
+    VVehicle* playerPntr;
 
     nextExpectedCheckPointValue = (it3)->first;
     playerPntr = (it3)->second;
 
-    vector< pair <irr::f32, Player*> > vecRemainingDistanceToNextCheckpoint;
+    vector< pair <irr::f32, VVehicle*> > vecRemainingDistanceToNextCheckpoint;
 
     for (it3 = vecNextCheckPointExpected.rbegin(); it3 != vecNextCheckPointExpected.rend(); ++it3) {
 
@@ -1371,7 +1392,7 @@ bool Race::RaceAllowsPlayersToAttack() {
 }
 
 void Race::AddPlayer(bool humanPlayer, char* name, std::string player_model) {
-    Player* newPlayer;
+    VVehicle* newPlayer;
 
     //***************************************************
     // Create and add a new player to the race          *
@@ -1379,7 +1400,7 @@ void Race::AddPlayer(bool humanPlayer, char* name, std::string player_model) {
 
     //already more players then available starting locations in map
     //if so simply exit
-    if (mPlayerVec.size() >=  mPlayerStartLocations.size()) {
+    if (mVanillaCraftVec.size() >=  mPlayerStartLocations.size()) {
         logging::Warning("No more player starting locations, can not add player!");
         return;
     }
@@ -1389,7 +1410,7 @@ void Race::AddPlayer(bool humanPlayer, char* name, std::string player_model) {
     irr::core::vector3d<irr::f32> Startdirection;
 
     //get new player map start location
-    Startpos = mPlayerStartLocations.at(mPlayerVec.size());
+    Startpos = mPlayerStartLocations.at(mVanillaCraftVec.size());
 
     Startdirection.X = Startpos.X;
     Startdirection.Y = Startpos.Y;
@@ -1402,71 +1423,45 @@ void Race::AddPlayer(bool humanPlayer, char* name, std::string player_model) {
     Startdirection.Z = Startpos.Z - 1.0f; //attempt beginning from 04.09.2024
 
     //create the new player
-    newPlayer = new Player(this, player_model, Startpos, Startdirection,
+    newPlayer = new VVehicle(this, player_model, Startpos, Startdirection,
                           this->mRaceNumberOfLaps, humanPlayer);
 
     if (mGame->mUseXEffects) {
         // Add this SceneNode to the shadow node list, using the chosen filtertype.
         // It will use the default shadow mode, ESM_BOTH, which allows it to
         // both cast and receive shadows.
-        mGame->mEffect->addShadowToNode(newPlayer->Player_node, mShadowMapFilterType);
+        mGame->mEffect->addShadowToNode(newPlayer->mCraftNode, mShadowMapFilterType);
     }
 
-    //Setup physics for new player, we handover pointer to Irrlicht
-    //player node, as the node (3D model) is now fully controlled
-    //by physics
-    this->mPhysics->AddObject(newPlayer->Player_node);
-
-    //retrieve a pointer to the player physics object that the physics code has
-    //created for me, we need this pointer to get access to get player info/control cameras, etc...
-    PhysicsObject* newPlayerPhysicsObj = mPhysics->GetObjectPntr(newPlayer->Player_node);
-
-    //setup player physic properties
-    //give the computer player slightly different values
-    //for optimization
-    if (newPlayerPhysicsObj != nullptr) {
-        SetupPhysicsObjectParameters(*newPlayerPhysicsObj, humanPlayer);
-
-        newPlayerPhysicsObj->physicState.position = Startpos;
-        newPlayerPhysicsObj->physicState.momentum = {0.0f, 0.0f, 0.0f};
-        newPlayerPhysicsObj->physicState.orientation.set(irr::core::vector3df(0.0f, 0.0f, 0.0f));
-
-        newPlayerPhysicsObj->physicState.recalculate();
-        newPlayerPhysicsObj->SetAirFriction(CRAFT_AIRFRICTION_NOTURBO);
-    }
-
-    //give the player a pointer to its physics object
-    newPlayer->SetPlayerObject(newPlayerPhysicsObj);
     newPlayer->SetName(name);
 
     //add new player to the vector of available players
     //the same is true for the player physics object
-    mPlayerVec.push_back(newPlayer);
-    mPlayerPhysicObjVec.push_back(newPlayerPhysicsObj);
+    mVanillaCraftVec.push_back(newPlayer);
 
-    newPlayer->currCloseWayPointLinks = mPath->PlayerFindCloseWaypointLinks(newPlayer);
-    newPlayer->SetCurrClosestWayPointLink(mPath->PlayerDeriveClosestWaypointLink(newPlayer->currCloseWayPointLinks));
+    //TODO newPlayer->currCloseWayPointLinks = mPath->PlayerFindCloseWaypointLinks(newPlayer);
+    //TODO newPlayer->SetCurrClosestWayPointLink(mPath->PlayerDeriveClosestWaypointLink(newPlayer->currCloseWayPointLinks));
 
     //setup computer players for race start
     //Note:we can call this function also for human
     //players, as the function will return for humans immediately
     //again, without causing issues!
-    newPlayer->SetupComputerPlayerForStart(Startpos);
+    //TODO newPlayer->SetupComputerPlayerForStart(Startpos);
 
     //if we do not skip start set player mode
     //accordingly; this also sets the Hud view mode
     //correctly via player state
     if (this->mCurrentPhase == DEF_RACE_PHASE_START) {
-        newPlayer->SetupForStart();
+        //TODO newPlayer->SetupForStart();
     } else if (mCurrentPhase == DEF_RACE_PHASE_RACING) {
-        newPlayer->SetupToSkipStart();
+        //TODO newPlayer->SetupToSkipStart();
     }
 
     //request new engine sound for new player
-    this->mSoundEngine->RequestEngineSoundForPlayer(newPlayer);
+    //TODO this->mSoundEngine->RequestEngineSoundForPlayer(newPlayer);
 
     //start engine sound for new player
-    this->mSoundEngine->StartEngineSoundForPlayer(newPlayer);
+    //TODO this->mSoundEngine->StartEngineSoundForPlayer(newPlayer);
 }
 
 void Race::SetupPhysicsObjectParameters(PhysicsObject &phyObj, bool humanPlayer) {
@@ -1500,7 +1495,7 @@ void Race::UpdatePlayerRacePositionRanking() {
 
     playerRanking.clear();
 
-    std::vector<Player*>::iterator it;
+    std::vector<VVehicle*>::iterator it;
 
     /****************************************************
      * Stage 1: Sort players by number of laps finished
@@ -1510,11 +1505,11 @@ void Race::UpdatePlayerRacePositionRanking() {
 
     //declaring vector of pairs containing number laps finished
     //and pointer to player
-    vector< pair <irr::s32, Player*> > vecLapsFinished;
+    vector< pair <irr::s32, VVehicle*> > vecLapsFinished;
 
-    for (it = mPlayerVec.begin(); it != mPlayerVec.end(); ++it) {
-        if (!(*it)->mPlayerStats->mHasFinishedRace) {
-          vecLapsFinished.push_back( make_pair((*it)->mPlayerStats->currLapNumber, (*it)));
+    for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
+        if (!(*it)->mHasFinishedRace) {
+          vecLapsFinished.push_back( make_pair((*it)->currLapNumber, (*it)));
         }
     }
 
@@ -1529,9 +1524,8 @@ void Race::UpdatePlayerRacePositionRanking() {
    auto it2 = vecLapsFinished.rbegin();
 
    irr::s32 currLapNr;
-   vector< pair <irr::s32, Player*> > vecNextCheckPointExpected;
-   vector< pair <irr::f32, Player*> > vecRemainingDistanceToNextCheckpoint;
-   Player* playerPntr;
+   vector< pair <irr::s32, VVehicle*> > vecNextCheckPointExpected;
+   VVehicle* playerPntr;
 
    currLapNr = (it2)->first;
    playerPntr = (it2)->second;
@@ -1600,13 +1594,13 @@ void Race::UpdatePlayerRacePositionRanking() {
    //are still racing for?
    int currPos = (int)(playerRaceFinishedVec.size()) + 1;
 
-   int numPlayers = (int)(mPlayerVec.size());
+   int numPlayers = (int)(mVanillaCraftVec.size());
 
    //all player rankings are done and stored in this->playerRanking
    //Update player objects with this new ranking information
    for (it = this->playerRanking.begin(); it != this->playerRanking.end(); ++it) {
-       (*it)->mPlayerStats->currRacePlayerPos = currPos;
-       (*it)->mPlayerStats->overallPlayerNumber = numPlayers;
+       (*it)->currRacePlayerPos = currPos;
+       (*it)->overallPlayerNumber = numPlayers;
        currPos++;
    }
 }
@@ -1619,7 +1613,7 @@ void Race::DebugResetColorAllWayPointLinksToWhite() {
     }
 }
 
-void Race::UpdatePlayerDistanceToNextCheckpoint(Player* whichPlayer) {
+void Race::UpdatePlayerDistanceToNextCheckpoint(VVehicle* whichPlayer) {
     irr::f32 sumDistance = 0.0f;
     WayPointLinkInfoStruct* currLink;
     irr::f32 len;
@@ -1723,119 +1717,109 @@ void Race::CleanupRaceStatistics(std::vector<RaceStatsEntryStruct*>* pntr) {
 
 void Race::PlayerHasFinishedLastLapOfRace(Player *whichPlayer) {
     if (whichPlayer != nullptr) {
-        this->playerRaceFinishedVec.push_back(whichPlayer);
+        //TODO: commented out
+        //this->playerRaceFinishedVec.push_back(whichPlayer);
     }
 }
 
 //helper function which creates and returns the final race statistics
 std::vector<RaceStatsEntryStruct*>* Race::RetrieveFinalRaceStatistics() {
-    std::vector<RaceStatsEntryStruct*>* result = new std::vector<RaceStatsEntryStruct*>;
+    //TODO: commented out
+    // std::vector<RaceStatsEntryStruct*>* result = new std::vector<RaceStatsEntryStruct*>;
 
-    result->clear();
+    // result->clear();
 
-    std::vector<Player*>::iterator itPlayer;
-    std::vector<Player*>::iterator itPlayerSearch;
-    std::vector <LAPTIMEENTRY>::iterator itLap;
-    irr::u32 sumLapTimes;
-    bool firstLapTime;
-    irr::u16 minLapTime = 0;
-    int fndIdx;
-    bool entryFound;
+    // std::vector<Player*>::iterator itPlayer;
+    // std::vector<Player*>::iterator itPlayerSearch;
+    // std::vector <LAPTIMEENTRY>::iterator itLap;
+    // irr::u32 sumLapTimes;
+    // bool firstLapTime;
+    // irr::u16 minLapTime = 0;
+    // int fndIdx;
+    // bool entryFound;
 
-    for (itPlayer = this->mPlayerVec.begin(); itPlayer != this->mPlayerVec.end(); ++itPlayer) {
-          RaceStatsEntryStruct* newEntry = new RaceStatsEntryStruct();
-          firstLapTime = true;
-          sumLapTimes = 0;
+    // for (itPlayer = this->mPlayerVec.begin(); itPlayer != this->mPlayerVec.end(); ++itPlayer) {
+    //       RaceStatsEntryStruct* newEntry = new RaceStatsEntryStruct();
+    //       firstLapTime = true;
+    //       sumLapTimes = 0;
 
-          //process lap time data
-          for (itLap = (*itPlayer)->mFinalPlayerStats->lapTimeList.begin(); itLap != (*itPlayer)->mFinalPlayerStats->lapTimeList.end(); ++itLap) {
-              sumLapTimes += (*itLap).lapTimeMultiple40mSec;
+    //       //process lap time data
+    //       for (itLap = (*itPlayer)->mFinalPlayerStats->lapTimeList.begin(); itLap != (*itPlayer)->mFinalPlayerStats->lapTimeList.end(); ++itLap) {
+    //           sumLapTimes += (*itLap).lapTimeMultiple40mSec;
 
-              if (firstLapTime) {
-                  firstLapTime = false;
-                  minLapTime = (*itLap).lapTimeMultiple40mSec;
-              } else {
-                  if ((*itLap).lapTimeMultiple40mSec < minLapTime) {
-                      minLapTime = (*itLap).lapTimeMultiple40mSec;
-                  }
-              }
-          }
+    //           if (firstLapTime) {
+    //               firstLapTime = false;
+    //               minLapTime = (*itLap).lapTimeMultiple40mSec;
+    //           } else {
+    //               if ((*itLap).lapTimeMultiple40mSec < minLapTime) {
+    //                   minLapTime = (*itLap).lapTimeMultiple40mSec;
+    //               }
+    //           }
+    //       }
 
-          strcpy(newEntry->playerName, (*itPlayer)->mFinalPlayerStats->name);
-          newEntry->nrKills = (*itPlayer)->mFinalPlayerStats->currKillCount;
-          newEntry->nrDeaths = (*itPlayer)->mFinalPlayerStats->currDeathCount;
-          newEntry->raceTime = sumLapTimes;
-          newEntry->bestLapTime = minLapTime;
+    //       strcpy(newEntry->playerName, (*itPlayer)->mFinalPlayerStats->name);
+    //       newEntry->nrKills = (*itPlayer)->mFinalPlayerStats->currKillCount;
+    //       newEntry->nrDeaths = (*itPlayer)->mFinalPlayerStats->currDeathCount;
+    //       newEntry->raceTime = sumLapTimes;
+    //       newEntry->bestLapTime = minLapTime;
 
-          irr::f32 avgLapTime = (irr::f32)(sumLapTimes) / (irr::f32)((*itPlayer)->mFinalPlayerStats->lapTimeList.size());
-          newEntry->avgLapTime = (irr::u16)(avgLapTime);
+    //       irr::f32 avgLapTime = (irr::f32)(sumLapTimes) / (irr::f32)((*itPlayer)->mFinalPlayerStats->lapTimeList.size());
+    //       newEntry->avgLapTime = (irr::u16)(avgLapTime);
 
-          //we find the final race position at which the player finished, in the order of the
-          //player elements in the playerRaceFinishedVec vector, first finished player (position 1)
-          //is first entry in this vector
-          fndIdx = 1;
-          entryFound = false;
+    //       //we find the final race position at which the player finished, in the order of the
+    //       //player elements in the playerRaceFinishedVec vector, first finished player (position 1)
+    //       //is first entry in this vector
+    //       fndIdx = 1;
+    //       entryFound = false;
 
-          for (itPlayerSearch = this->playerRaceFinishedVec.begin(); itPlayerSearch != this->playerRaceFinishedVec.end(); ++itPlayerSearch) {
-              //we found the position of this player in the
-              //ranking list
-              if ((*itPlayerSearch) == (*itPlayer)) {
-                  entryFound = true;
-                  break;
-              }
+    //       for (itPlayerSearch = this->playerRaceFinishedVec.begin(); itPlayerSearch != this->playerRaceFinishedVec.end(); ++itPlayerSearch) {
+    //           //we found the position of this player in the
+    //           //ranking list
+    //           if ((*itPlayerSearch) == (*itPlayer)) {
+    //               entryFound = true;
+    //               break;
+    //           }
 
-              fndIdx++;
-          }
+    //           fndIdx++;
+    //       }
 
-          newEntry->racePosition = fndIdx;
+    //       newEntry->racePosition = fndIdx;
 
-          irr::u32 nrShootsfired = (*itPlayer)->mFinalPlayerStats->shootsHit + (*itPlayer)->mFinalPlayerStats->shootsMissed;
-          irr::f32 accuracy;
+    //       irr::u32 nrShootsfired = (*itPlayer)->mFinalPlayerStats->shootsHit + (*itPlayer)->mFinalPlayerStats->shootsMissed;
+    //       irr::f32 accuracy;
 
-          if (nrShootsfired > 0) {
-                    accuracy = ((irr::f32)((*itPlayer)->mFinalPlayerStats->shootsHit) / (irr::f32)(nrShootsfired)) * 100.0f;
-          } else {
-              accuracy = 0.0f;
-          }
+    //       if (nrShootsfired > 0) {
+    //                 accuracy = ((irr::f32)((*itPlayer)->mFinalPlayerStats->shootsHit) / (irr::f32)(nrShootsfired)) * 100.0f;
+    //       } else {
+    //           accuracy = 0.0f;
+    //       }
 
-          newEntry->hitAccuracy = (irr::u8)(accuracy);
+    //       newEntry->hitAccuracy = (irr::u8)(accuracy);
 
-          //plausi check
-          if (newEntry->hitAccuracy < 0)
-              newEntry->hitAccuracy = 0;
+    //       //plausi check
+    //       if (newEntry->hitAccuracy < 0)
+    //           newEntry->hitAccuracy = 0;
 
-          if (newEntry->hitAccuracy > 100)
-              newEntry->hitAccuracy = 100;
+    //       if (newEntry->hitAccuracy > 100)
+    //           newEntry->hitAccuracy = 100;
 
-          //TODO: calculate later!
-          //rating goes from lowest 1 (worst) up to
-          //20 (best player)
-          newEntry->rating = 1;
+    //       //TODO: calculate later!
+    //       //rating goes from lowest 1 (worst) up to
+    //       //20 (best player)
+    //       newEntry->rating = 1;
 
-          //only if player was found in ranking add it to the
-          //results table
-          if (entryFound) {
-            result->push_back(newEntry);
-          } else {
-              //do not add player result
-              //just delete struct again
-              delete newEntry;
-          }
-    }
+    //       //only if player was found in ranking add it to the
+    //       //results table
+    //       if (entryFound) {
+    //         result->push_back(newEntry);
+    //       } else {
+    //           //do not add player result
+    //           //just delete struct again
+    //           delete newEntry;
+    //       }
+    // }
 
-    return (result);
-}
-
-void Race::HandleCraftHeightMapCollisions(irr::f32 deltaTime, PhysicsObject* whichObj) {
-    std::vector<Player*>::iterator itPlayer;
-
-    for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
-        //to which player does this PhysicsObject belong to?
-        if ((*itPlayer)->phobj == whichObj) {
-            //yes, it belongs to this player
-            (*itPlayer)->ExecuteHeightMapCollisionDetection(deltaTime);
-        }
-    }
+    // return (result);
 }
 
 void Race::Init() {
@@ -1872,7 +1856,7 @@ void Race::Init() {
     /***********************************************************/
     /* Init single player HUD                                  */
     /***********************************************************/
-    Hud1Player = new HUD(mGame);
+    Hud1Player = new HUD(mGame, this);
 
     //create my overall physics object
     //also handover pointer to my DrawDebug object
@@ -1975,34 +1959,9 @@ void Race::Init() {
     ready = true;
 
     //for debugging vanilla stuff
-    if (mAddVVehicle) {
-        mVDbgInterface = new DbgInterface();
+    mVDbgInterface = new DbgInterface();
 
-        this->mVCalc->Verify_vanilla_calculations();
-
-        irr::core::vector3df testVehiclePos(mPlayerStartLocations.at(0));
-
-        irr::core::vector3df vPos = mVCalc->IrrlichtToVanillaCoord(testVehiclePos);
-        vPos.Z = mVCalc->map_floor(vPos);
-        vPos.Z += 0.5f;
-
-        mVCraft = new VVehicle(this, mVCalc->VanillaToIrrlichtCoord(vPos),
-                               mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));
-
-        //add a second vehicle for testing of collision detection
-        /*testVehiclePos.set(mPlayerStartLocations.at(1));
-
-        vPos = mVCalc->IrrlichtToVanillaCoord(testVehiclePos);
-        vPos.Z = mVCalc->map_floor(vPos);
-        vPos.Z += 0.5f;
-
-        mVCraft2 = new VVehicle(this, mVCalc->VanillaToIrrlichtCoord(vPos),
-                               mVCalc->VanillaToIrrlichtCoord(vPos) + irr::core::vector3df(0.0f, 0.0f, -1.0f));*/
-
-        mVanillaCraftVec.clear();
-        mVanillaCraftVec.push_back(mVCraft);
-      //  mVanillaCraftVec.push_back(mVCraft2);
-    }
+    this->mVCalc->Verify_vanilla_calculations();
 
     mVCamera = new VCamera(this);
 
@@ -2139,10 +2098,10 @@ void Race::ControlStartPhase(irr::f32 frameDeltaTime) {
             this->mCurrentPhase = DEF_RACE_PHASE_FIRSTWAYTOWARDSFINISHLINE;
 
             //switch all players to first way to finish line mode
-            std::vector<Player*>::iterator it;
-            for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
-                ((*it)->SetupForFirstWayToFinishLine());
-            }
+            //TODO: std::vector<Player*>::iterator it;
+            //for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
+            //    ((*it)->SetupForFirstWayToFinishLine());
+            //}
         }
     }
 }
@@ -2235,14 +2194,6 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
 
     float progressMorph;
 
-    irr::f32 physicsFrameDeltaTime = frameDeltaTime;
-
-    //if physicsFrameDeltaTime is too large we could get
-    //weird physics effects, therefore clamp time to max
-    //allowed level
-    if (physicsFrameDeltaTime > 0.1f)
-      physicsFrameDeltaTime = 0.01f;
-
     //Handle morphs,
     //and update timers
     if (AllowStartMorphsPerKey && runMorph)
@@ -2271,14 +2222,6 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     //update timer
     UpdateTimers(frameDeltaTime);
 
-    if (mAddVVehicle) {
-        std::vector<VVehicle*>::iterator it;
-
-        for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
-            (*it)->Update(frameDeltaTime);
-        }
-    }
-
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntMorphing);
 
     //update all cones
@@ -2300,30 +2243,41 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntProcessTriggers);
 
     //update all players
-    std::vector<Player*>::iterator itPlayer;
+    std::vector<VVehicle*>::iterator itPlayer;
+
+    for (itPlayer = mVanillaCraftVec.begin(); itPlayer != mVanillaCraftVec.end(); ++itPlayer) {
+       CheckPlayerCrossedCheckPoint((*itPlayer));
+       CheckPlayerCollidedCollectible(*itPlayer);
+   }
 
     //reset variable mOtherPlayerHasMissleLockAtMe for all players
     //we use this variable to find out which player is currently targeted
     //by a missile lock of another player, we need to know to be able to play
     //the warning sound
-    for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
-          (*itPlayer)->mOtherPlayerHasMissleLockAtMe = false;
+    //TODO: for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
+    //      (*itPlayer)->mOtherPlayerHasMissleLockAtMe = false;
+    //}
+
+    for (itPlayer = mVanillaCraftVec.begin(); itPlayer != mVanillaCraftVec.end(); ++itPlayer) {
+        (*itPlayer)->Update(frameDeltaTime);
     }
+
+    UpdateSpriteThings(frameDeltaTime);
 
     //in the player Update function the mOtherPlayerHasMissleLockAtMe is set
     //to true by other players, if the have currently a missile lock at this player
     //the warning sound is then finally triggered in the AfterPhysicsUpdate routine
     //call below
-    for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
-          (*itPlayer)->Update(frameDeltaTime);
-    }
+    //TODO:: for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
+    //      (*itPlayer)->Update(frameDeltaTime);
+    //}
 
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntUpdatePlayers);
 
     //advance physics time and update sceneNode positions and orientations
-    mPhysics->AdvancePhysicsTime(physicsFrameDeltaTime);
+    //mPhysics->AdvancePhysicsTime(physicsFrameDeltaTime);
 
-    mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntAdvancePhysics);
+    //mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntAdvancePhysics);
 
     if (!mDemoMode) {
         //camera control normal race
@@ -2334,9 +2288,9 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
         ManageCameraDemoMode(frameDeltaTime);
     }
 
-    for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
-          (*itPlayer)->AfterPhysicsUpdate();
-    }
+    //TODO: for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
+    //      (*itPlayer)->AfterPhysicsUpdate();
+    //}
 
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntAfterPhysicsUpdate);
 
@@ -2349,24 +2303,18 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
                                   player->phobj->physicState.position, player->phobj->physicState.position + player->craftForwardDirVec * irr::core::vector3df(50.0f, 50.0f, 50.0f),
                                                                   true);*/
 
-     for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
+    for (itPlayer = mVanillaCraftVec.begin(); itPlayer != mVanillaCraftVec.end(); ++itPlayer) {
         (*itPlayer)->currCloseWayPointLinks = mPath->PlayerFindCloseWaypointLinks((*itPlayer));
         (*itPlayer)->SetCurrClosestWayPointLink(mPath->PlayerDeriveClosestWaypointLink((*itPlayer)->currCloseWayPointLinks));
-     }
+    }
 
-     for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
+    for (itPlayer = mVanillaCraftVec.begin(); itPlayer != mVanillaCraftVec.end(); ++itPlayer) {
         UpdatePlayerDistanceToNextCheckpoint(*itPlayer);
-     }
-
-     for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
-        irr::core::aabbox3d<f32> playerBox = (*itPlayer)->Player_node->getTransformedBoundingBox();
-        CheckPlayerCrossedCheckPoint((*itPlayer), playerBox);
-        CheckPlayerCollidedCollectible((*itPlayer), playerBox);
     }
 
     //update player race position ranking
     UpdatePlayerRacePositionRanking();
-
+/*
     //update recovery vehicle logic
     UpdateRecoveryVehicles(frameDeltaTime);
 
@@ -2384,15 +2332,15 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     UpdateType2Collectables(frameDeltaTime);
 
     //update all current explosions
-    mExplosionLauncher->Update(frameDeltaTime);
+    mExplosionLauncher->Update(frameDeltaTime);*/
 
     UpdateShadowLights();
 
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntUpdateParticleSystems);
 
-    for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
-        mWorldAware->Analyse(*itPlayer);
-    }
+    //TODO: for (itPlayer = mPlayerVec.begin(); itPlayer != mPlayerVec.end(); ++itPlayer) {
+    //    mWorldAware->Analyse(*itPlayer);
+    //}
 
     mGame->mTimeProfiler->Profile(mGame->mTimeProfiler->tIntWorldAware);
 }
@@ -2413,13 +2361,13 @@ void Race::UpdateShadowLights() {
     }
 }
 
-void Race::PlayerEnteredCraftTriggerRegion(Player* whichPlayer, MapTileRegionStruct* whichRegion) {
+void Race::PlayerEnteredCraftTriggerRegion(VVehicle* whichPlayer, MapTileRegionStruct* whichRegion) {
     //yes, player is currently inside this region
     if (DebugShowTriggerEvents) {
         char triggerMessage[80];
         char triggerID[10];
 
-        strcpy(triggerMessage, whichPlayer->mPlayerStats->name);
+        strcpy(triggerMessage, whichPlayer->Stats.name);
         strcat(triggerMessage, " TRIGGERED ");
         sprintf(triggerID, "%d", whichRegion->regionId);
         strcat(triggerMessage, triggerID);
@@ -2540,18 +2488,16 @@ void Race::ProcessPendingTriggers() {
     }
 }
 
-void Race::CheckPlayerCrossedCheckPoint(Player* whichPlayer, irr::core::aabbox3d<f32> playerBox) {
+void Race::CheckPlayerCrossedCheckPoint(VVehicle* whichPlayer) {
 
     std::vector<CheckPointInfoStruct*>::iterator it;
-    irr::core::aabbox3d<f32> checkPointBox;
 
     for (it = this->checkPointVec->begin(); it != this->checkPointVec->end(); ++it) {
-        checkPointBox = (*it)->SceneNode->getTransformedBoundingBox();
-        if (playerBox.intersectsWithBox(checkPointBox)) {
+        if (whichPlayer->mBoundingBox.intersectsWithBox((*it)->checkPointBox)) {
 
             //player crosses waypoint, figure out if player crosses waypoint in the normal
             //race direction, if not ignore event
-            irr::core::vector3df velNormalized = whichPlayer->phobj->physicState.velocity.normalize();
+            irr::core::vector3df velNormalized = whichPlayer->IrrWorldDirVecForward;
 
             //if the player crosses checkPoint in normal RaceDirection
             //the dotProduct should be positive
@@ -2711,7 +2657,8 @@ void Race::HandleDebugInput() {
         if (playerCamera) {
            //hide the camera of the selected player
            if (currPlayerFollow != nullptr) {
-               currPlayerFollow->HideCraft();
+             //TODO: commented out
+             //  currPlayerFollow->HideCraft();
            }
         }
     }
@@ -2792,11 +2739,11 @@ void Race::HandleExitRace() {
    bool allAnimatorsDone = true;
 
    //all machine gun animators done
-   std::vector<Player*>::iterator it;
+   //std::vector<Player*>::iterator it;
 
-   for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
-       allAnimatorsDone &= (*it)->AllAnimatorsDone();
-   }
+   //TODO: for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
+   //    allAnimatorsDone &= (*it)->AllAnimatorsDone();
+   //}
 
    if (allAnimatorsDone) {
        //now we can really exit the game
@@ -2806,91 +2753,41 @@ void Race::HandleExitRace() {
 }
 
 void Race::HandleInput(irr::f32 deltaTime) {
-     if (mPlayerVec.at(0)->mHumanPlayer) {
-            bool playerNoTurningKeyPressed = true;
+     if (!mVanillaCraftVec.at(0)->IsControlledByComputer()) {
+         mVanillaCraftVec.at(0)->KeyPressedAccel = false;
+         mVanillaCraftVec.at(0)->KeyPressedDeaccel = false;
+         mVanillaCraftVec.at(0)->KeyPressedBooster = false;
+         mVanillaCraftVec.at(0)->KeyPressedTurnLeft = false;
+         mVanillaCraftVec.at(0)->KeyPressedTurnRight = false;
 
-             if(mGame->mEventReceiver->IsKeyDown(irr::KEY_UP)) {
-                if (mAddVVehicle) {
-                mVCraft->KeyPressedAccel = true;
-                } else {
-                     mPlayerVec.at(0)->Forward(deltaTime);
-                }
-             } else {
-                 if (mAddVVehicle) {
-                   mVCraft->KeyPressedAccel = false;
-                 }
-             }
+         if(mGame->mEventReceiver->IsKeyDown(irr::KEY_UP)) {
+             mVanillaCraftVec.at(0)->KeyPressedAccel = true;
+         }
 
-             if(mGame->mEventReceiver->IsKeyDown(irr::KEY_DOWN))
-             {
-                if (mAddVVehicle) {
-                mVCraft->KeyPressedDeaccel = true;
-                } else {
-                    mPlayerVec.at(0)->Backward(deltaTime);
-                }
-             } else {
-                 if (mAddVVehicle) {
-                   mVCraft->KeyPressedDeaccel = false;
-                 }
-             }
+         if(mGame->mEventReceiver->IsKeyDown(irr::KEY_DOWN)) {
+            mVanillaCraftVec.at(0)->KeyPressedDeaccel = true;
+         }
 
-             if (!mAddVVehicle) {
-                     if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
-                     {
-                        mPlayerVec.at(0)->IsSpaceDown(true, deltaTime);
-                     } else {
-                        mPlayerVec.at(0)->IsSpaceDown(false, deltaTime);
-                     }
-             } else {
-                 if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
-                 {
-                     mVCraft->KeyPressedBooster = true;
-                 } else {
-                     mVCraft->KeyPressedBooster = false;
-                 }
-             }
+         if(mGame->mEventReceiver->IsKeyDown(irr::KEY_SPACE))
+         {
+            mVanillaCraftVec.at(0)->KeyPressedBooster = true;
+         }
 
-             if(mGame->mEventReceiver->IsKeyDown(irr::KEY_LEFT)) {
-                  playerNoTurningKeyPressed = false;
-                  if (mAddVVehicle) {
-                    mVCraft->KeyPressedTurnLeft = true;
-                  } else {
-                       mPlayerVec.at(0)->Left();
-                       mPlayerVec.at(0)->firstNoKeyPressed = true;
-                  }
-             } else {
-                 if (mAddVVehicle) {
-                   mVCraft->KeyPressedTurnLeft = false;
-                 }
-             }
+        if(mGame->mEventReceiver->IsKeyDown(irr::KEY_LEFT)) {
+            mVanillaCraftVec.at(0)->KeyPressedTurnLeft = true;
+        }
 
-             if(mGame->mEventReceiver->IsKeyDown(irr::KEY_RIGHT)) {
-                  playerNoTurningKeyPressed = false;
-                  if (mAddVVehicle) {
-                    mVCraft->KeyPressedTurnRight = true;
-                  } else {
-                       mPlayerVec.at(0)->Right();
-                       mPlayerVec.at(0)->firstNoKeyPressed = true;
-                  }
-             } else {
-                 if (mAddVVehicle) {
-                   mVCraft->KeyPressedTurnRight = false;
-                 }
-             }
+        if(mGame->mEventReceiver->IsKeyDown(irr::KEY_RIGHT)) {
+            mVanillaCraftVec.at(0)->KeyPressedTurnRight = true;
+        }
 
-             //if player has not pressed any turning key run this code
-             //as well
-             if (playerNoTurningKeyPressed) {
-                 mPlayerVec.at(0)->NoTurningKeyPressed();
-             }
+        //TODO: if (mGame->mEventReceiver->IsKeyDown(irr::KEY_KEY_Y)) {
+        //         mPlayerVec.at(0)->mMGun->Trigger();
+        //     }
 
-             if (mGame->mEventReceiver->IsKeyDown(irr::KEY_KEY_Y)) {
-                 mPlayerVec.at(0)->mMGun->Trigger();
-             }
-
-             if (mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_X)) {
-                 mPlayerVec.at(0)->mMissileLauncher->Trigger();
-             }
+        //TODO:    if (mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_X)) {
+        //         mPlayerVec.at(0)->mMissileLauncher->Trigger();
+        //    }
      }
 
      if (mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_ESCAPE)) {
@@ -2903,7 +2800,7 @@ void Race::HandleInput(irr::f32 deltaTime) {
      if (mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_F)) {
          if (this->currPlayerFollow != nullptr)
          {
-             this->currPlayerFollow->ChangeViewMode();
+             //this->currPlayerFollow->ChangeViewMode();
          }
      }
 }
@@ -3001,35 +2898,36 @@ void Race::draw2DImage(irr::video::IVideoDriver *driver, irr::video::ITexture* t
 }
 
 void Race::DrawSky() {
-    if (mSkyImage != nullptr) {
-        //we also need current player absolute orientation in degree
-        irr::f32 orientationAngle = currPlayerFollow->mCurrentCraftOrientationAngle;
+    //TODO: commented out, does not compile anymore
+    // if (mSkyImage != nullptr) {
+    //     //we also need current player absolute orientation in degree
+    //     irr::f32 orientationAngle = currPlayerFollow->mCurrentCraftOrientationAngle;
 
-        irr::f32 hlp = ((currPlayerFollow->mCurrentAvgPlayerLeaningAngleLeftRightValue - 180.0f) / 180.0f) * 150.0f;
+    //     irr::f32 hlp = ((currPlayerFollow->mCurrentAvgPlayerLeaningAngleLeftRightValue - 180.0f) / 180.0f) * 150.0f;
 
-        //sky pattern repeats itself every 512 pixels
-        //each modified sky image has 2 copies of initial image next
-        //to each other, so 360 degree full rotation should move
-        //image window by 1024 pixels
-        irr::f32 moveXFloat = (orientationAngle / 360.0f) * 1024.0f + hlp;
+    //     //sky pattern repeats itself every 512 pixels
+    //     //each modified sky image has 2 copies of initial image next
+    //     //to each other, so 360 degree full rotation should move
+    //     //image window by 1024 pixels
+    //     irr::f32 moveXFloat = (orientationAngle / 360.0f) * 1024.0f + hlp;
 
-        //Draw sky
-        irr::s32 moveX = 0;
+    //     //Draw sky
+    //     irr::s32 moveX = 0;
 
-        moveX = -(irr::s32)(moveXFloat);
+    //     moveX = -(irr::s32)(moveXFloat);
 
-        irr::core::recti locMovingWindow( 256 - 25 + moveX , 80,
-                                          256 - 25 + moveX + 1024 , mSkyImage->getSize().Height - 30);
+    //     irr::core::recti locMovingWindow( 256 - 25 + moveX , 80,
+    //                                       256 - 25 + moveX + 1024 , mSkyImage->getSize().Height - 30);
 
-        irr::core::vector2di sizeMovingWindow = locMovingWindow.getSize();
-        irr::core::vector2di drawPosWorldLeftUpperCorner = irr::core::vector2di(-200, -75);
+    //     irr::core::vector2di sizeMovingWindow = locMovingWindow.getSize();
+    //     irr::core::vector2di drawPosWorldLeftUpperCorner = irr::core::vector2di(-200, -75);
 
-        irr::core::vector2di middlePos = (sizeMovingWindow - drawPosWorldLeftUpperCorner) / 2 + drawPosWorldLeftUpperCorner;
+    //     irr::core::vector2di middlePos = (sizeMovingWindow - drawPosWorldLeftUpperCorner) / 2 + drawPosWorldLeftUpperCorner;
 
-         draw2DImage(mGame->mDriver, mSkyImage ,locMovingWindow, drawPosWorldLeftUpperCorner, middlePos,
-              -currPlayerFollow->mCurrentAvgPlayerLeaningAngleLeftRightValue * 0.35f, irr::core::vector2df(1.0f, 1.0f),
-              false, irr::video::SColor(255,255,255,255));
-        }
+    //      draw2DImage(mGame->mDriver, mSkyImage ,locMovingWindow, drawPosWorldLeftUpperCorner, middlePos,
+    //           -currPlayerFollow->mCurrentAvgPlayerLeaningAngleLeftRightValue * 0.35f, irr::core::vector2df(1.0f, 1.0f),
+    //           false, irr::video::SColor(255,255,255,255));
+    //     }
 }
 
 void Race::DrawTestShape() {
@@ -3106,15 +3004,21 @@ void Race::DrawHUD(irr::f32 frameDeltaTime) {
      * Draw MiniMap for all players   *
      * ******************************** */
 
-     std::vector<Player*>::iterator itPlayer;
+     std::vector<VVehicle*>::iterator itPlayer;
      std::vector<irr::core::vector2di> coordVec;
+     irr::core::vector3df vanCoord;
+     irr::core::vector2di cell;
      coordVec.clear();
 
-     for (itPlayer = this->mPlayerVec.begin(); itPlayer != this->mPlayerVec.end(); ++itPlayer) {
-         coordVec.push_back(irr::core::vector2di((*itPlayer)->mCurrPosCellX, (*itPlayer)->mCurrPosCellY));
+     for (itPlayer = this->mVanillaCraftVec.begin(); itPlayer != this->mVanillaCraftVec.end(); ++itPlayer) {
+         vanCoord = (*itPlayer)->ThingData.Position;
+         cell.X = (vanCoord.X / mLevelTerrain->segmentSize);
+         cell.Y = (vanCoord.Y / mLevelTerrain->segmentSize);
+
+         coordVec.push_back(cell);
      }
 
-    mMiniMap->DrawMiniMap(frameDeltaTime, coordVec, mPlayerVec.at(0)->mHumanPlayer);
+    mMiniMap->DrawMiniMap(frameDeltaTime, coordVec, mVanillaCraftVec.at(0)->IsControlledByComputer());
 }
 
 void Race::DebugDrawClonePath(CloneRecording* recording) {
@@ -3146,12 +3050,17 @@ void Race::DebugDrawWayPointLinks(bool drawFreeMovementSpace) {
     //draw all connections between map waypoints for debugging purposes;
     for(WayPointLink_iterator = wayPointLinkVec->begin(); WayPointLink_iterator != wayPointLinkVec->end(); ++WayPointLink_iterator) {
         //draw lines a little bit raised from Terrain, so that the are better visible
-        irr::core::vector3df incY(0.0f, 0.15f, 0.0f);
+        irr::core::vector3df incY(0.0f, 0.25f, 0.0f);
 
-        mGame->mDrawDebug->Draw3DArrow((*WayPointLink_iterator)->pLineStruct->A + incY,
+        /*mGame->mDrawDebug->Draw3DArrow((*WayPointLink_iterator)->pLineStruct->A + incY,
                                         (*WayPointLink_iterator)->pLineStruct->B + incY,
                                         0.5f,
-                                        (*WayPointLink_iterator)->pLineStruct->color, 0.1f);
+                                        (*WayPointLink_iterator)->pLineStruct->color, 0.1f);*/
+
+        mLevelTerrain->Draw3DArrowOnTerrain((*WayPointLink_iterator)->pLineStruct->A + incY,
+                                                      (*WayPointLink_iterator)->pLineStruct->B + incY,
+                                                      0.5f,
+                                                      (*WayPointLink_iterator)->pLineStruct->color, 0.1f);
 
         if (drawFreeMovementSpace) {
             //also draw min/max offset shift limit lines for graphical representation of possible computer player
@@ -3244,7 +3153,7 @@ void Race::Render() {
     //with XEffect this does not work, so here we have to use the upgraded skydome
     if (!mGame->mGameConfig->useUpgradedSky) {
         //we need to draw sky image first, the remaining scene will be drawn on top of it
-        DrawSky();
+        //TODO DrawSky();
     }
 
     if (mGame->mDbgUnlocked) {
@@ -3262,7 +3171,8 @@ void Race::Render() {
         if (DebugShowWallSegments) {
           //draw all wallsegments for debugging purposes
          for(Linedraw_iterator2 = ENTWallsegmentsLine_List->begin(); Linedraw_iterator2 != ENTWallsegmentsLine_List->end(); ++Linedraw_iterator2) {
-              mGame->mDrawDebug->Draw3DLine((*Linedraw_iterator2)->A, (*Linedraw_iterator2)->B, mGame->mDrawDebug->red);
+              //mGame->mDrawDebug->Draw3DLine((*Linedraw_iterator2)->A, (*Linedraw_iterator2)->B, mGame->mDrawDebug->red);
+              mLevelTerrain->DrawLineOnTerrain((*Linedraw_iterator2)->A, (*Linedraw_iterator2)->B, mGame->mDrawDebug->red);
            }
          }
 
@@ -3296,9 +3206,9 @@ void Race::Render() {
             }
         }
 
-        if (currPlayerFollow != nullptr) {
-            currPlayerFollow->DebugDraw();
-        }
+        // if (currPlayerFollow != nullptr) {
+        //     currPlayerFollow->DebugDraw();
+        // }
 
         if (DebugShowCloneRecording && (mCloneRecording != nullptr)) {
             DebugDrawClonePath(mCloneRecording);
@@ -3417,9 +3327,11 @@ void Race::Render() {
             }*/
 
 
-           /* if (currPlayerFollow->cPCurrentFollowSeg != nullptr) {
-                mDrawDebug->Draw3DLine(currPlayerFollow->cPCurrentFollowSeg->pLineStruct->A, currPlayerFollow->cPCurrentFollowSeg->pLineStruct->B,
-                                       mDrawDebug->orange);
+           /* if (mVanillaCraftVec[0]->currClosestWayPointLink.first != nullptr) {
+                irr::core::vector3df vanPos = mVanillaCraftVec[0]->ThingData.Position;
+                irr::core::vector3df irrPos = mVCalc->VanillaToIrrlichtCoord(vanPos);
+                mGame->mDrawDebug->Draw3DLine(irrPos, mVanillaCraftVec[0]->projPlayerPositionClosestWayPointLink,
+                                       mGame->mDrawDebug->orange);
             }*/
 
         //}
@@ -3445,19 +3357,6 @@ void Race::Render() {
         mGame->mDrawDebug->Draw3DLine(mVTrack->debugCol1Vec1, mVTrack->debugCol1Vec2, mGame->mDrawDebug->cyan);
     }*/
 
-    if (mVCraft != nullptr) {
-        //mVCraft->DrawDebug();
-      /*  if (mVCraft->dbgTrackCurrWayPoint != 0) {
-            irr::core::vector3df vanPosWayPnt = mVTrack->TrackWaypointList[mVCraft->dbgTrackCurrWayPoint].Position;
-            vanPosWayPnt.Z = mVCalc->map_floor(vanPosWayPnt);
-            irr::core::vector3df irrPosWayPnt = mVCalc->VanillaToIrrlichtCoord(vanPosWayPnt);
-
-            irr::core::vector3df vanPosCraft = mVCraft->ThingData.Position;
-            irr::core::vector3df irrPosCraft = mVCalc->VanillaToIrrlichtCoord(vanPosCraft);
-
-            mGame->mDrawDebug->Draw3DLine(irrPosCraft, irrPosWayPnt, mGame->mDrawDebug->cyan);
-        }*/
-    }
 }
 
 void Race::UpdatePlayersDbgFlag(irr::u8 debugFlag, bool enable) {
@@ -3488,31 +3387,32 @@ void Race::DebugShowAllObstaclePlayers() {
 
 //function for debugging
 void Race::DebugSelectPlayer(int whichPlayerNr) {
-    if (whichPlayerNr < this->mPlayerVec.size()) {
-       if (currPlayerFollow != nullptr) {
-            currPlayerFollow->DebugSelectionBox(false);
+    //TODO: add back later
+    // if (whichPlayerNr < this->mPlayerVec.size()) {
+    //    if (currPlayerFollow != nullptr) {
+    //         currPlayerFollow->DebugSelectionBox(false);
 
-            //unhide player model
-            currPlayerFollow->UnhideCraft();
-       }
+    //         //unhide player model
+    //         currPlayerFollow->UnhideCraft();
+    //    }
 
-       currPlayerFollow = this->mPlayerVec.at(whichPlayerNr);
+        currPlayerFollow = this->mVanillaCraftVec.at(whichPlayerNr);
 
-    //   if (!mDemoMode) {
-           //do we need to hide selected player model
-           bool hideModel = currPlayerFollow->DoWeNeedHidePlayerModel();
+    // //   if (!mDemoMode) {
+    //        // //do we need to hide selected player model
+    //        // bool hideModel = currPlayerFollow->DoWeNeedHidePlayerModel();
 
-           if (hideModel) {
-               currPlayerFollow->HideCraft();
-           }
+    //        // if (hideModel) {
+    //        //     currPlayerFollow->HideCraft();
+    //        // }
 
-           //only show player debugging boxes when we actually debug
-           //the game
-            currPlayerFollow->DebugSelectionBox(mGame->mDebugRace || mGame->mDebugDemoMode);
-      // }
+    //        //only show player debugging boxes when we actually debug
+    //        //the game
+    //         currPlayerFollow->DebugSelectionBox(mGame->mDebugRace || mGame->mDebugDemoMode);
+    //   // }
 
-       Hud1Player->SetMonitorWhichPlayer(currPlayerFollow);   
-    }
+        Hud1Player->SetMonitorWhichPlayer(currPlayerFollow);
+    // }
 }
 
 void Race::IndicateTriggerRegions() {
@@ -3732,6 +3632,24 @@ bool Race::SetupSky() {
     return true;
 }
 
+void Race::InitialUpdateCollectablePositions() {
+    std::vector<Collectable*>::iterator it;
+
+    irr::core::vector3df irrCoord;
+    irr::core::vector3df vanCoord;
+
+    for (it = ENTCollectablesVec->begin(); it != ENTCollectablesVec->end(); ++it) {
+        //only apply for type 1 collectables (the ones which are contained in the level file initially!)
+        if ((*it)->mEntityItem != nullptr) {
+            irrCoord = (*it)->Position;
+            vanCoord = mVCalc->IrrlichtToVanillaCoord(irrCoord);
+            irrCoord.Y = mVCalc->map_altitude_lowest(vanCoord);
+
+            (*it)->UpdatePosition(irrCoord);
+        }
+    }
+}
+
 bool Race::LoadLevel() {
    std::string levelfilename("");
    std::string texfilename("");
@@ -3853,6 +3771,10 @@ bool Race::LoadLevel() {
        //something went wrong with the terrain loading, exit application
        return false;
    }
+
+   //After the level geometry data is available
+   //update Collectable heights one more time
+   InitialUpdateCollectablePositions();
 
    if (mGame->mUseXEffects) {
        // Add the terrain SceneNodes to the shadow node list, using the chosen filtertype.
@@ -4012,6 +3934,11 @@ void Race::AddCheckPoint(EntityItem entity) {
     //this value needs to be figured out later in some kind of
     //postprocessing!
     newStruct->RaceDirectionVec.set(0.0f, 0.0f, 0.0f);
+
+    newStruct->SceneNode->updateAbsolutePosition();
+
+    //prepare a bounding box for later
+    newStruct->checkPointBox = newStruct->SceneNode->getTransformedBoundingBox();
 
     //all created, add Checkpoint to our list
     this->checkPointVec->push_back(newStruct);
@@ -4352,11 +4279,14 @@ void Race::CreateChargingStations() {
     }
 }
 
-void Race::CheckPlayerCollidedCollectible(Player* player, irr::core::aabbox3d<f32> playerBox) {
+void Race::CheckPlayerCollidedCollectible(VVehicle* player) {
+    if (player == nullptr)
+        return;
+
     //ony allow player which is not currently broken down to collect
     //collectables
-    if (player->mPlayerStats->mPlayerCurrentState == STATE_PLAYER_BROKEN)
-        return;
+    /*if (player->mPlayerStats->mPlayerCurrentState == STATE_PLAYER_BROKEN)
+        return;*/
 
     std::vector<Collectable*>::iterator it;
 
@@ -4365,7 +4295,7 @@ void Race::CheckPlayerCollidedCollectible(Player* player, irr::core::aabbox3d<f3
         if ((*it)->GetIfVisible()) {
             //does player bounding box intersect the bounding box of the collectible
             //item?
-            if (playerBox.intersectsWithBox((*it)->boundingBox)) {
+            if (player->mBoundingBox.intersectsWithBox((*it)->boundingBox)) {
                 //yes, player does touch the collectible
 
                 //tell player object that this item can
@@ -4565,30 +4495,21 @@ void Race::ManageCameraDemoMode(irr::f32 deltaTime) {
 
 void Race::ManagePlayerCamera() {
     irr::scene::ICameraSceneNode* activeCam = nullptr;
-    bool hidePlayerModel;
+    //bool hidePlayerModel;
 
     if (playerCamera) {
         //get active camera of currently selected
         //player, and check if it has changed
-        if (!mAddVVehicle) {
-            if (this->currPlayerFollow != nullptr) {
-                activeCam = this->currPlayerFollow->DeliverActiveCamera();
-
-                //do we need to hide the player model?
-                hidePlayerModel = this->currPlayerFollow->DoWeNeedHidePlayerModel();
-            }
-        } else {
-            //activeCam = mVCraft->mOutsideCam;
-            activeCam = vanTestCam;
-        }
-    } else {
+        activeCam = vanTestCam;
+    }
+    else {
         //free moving camera to inspect the level/map
         //make sure to unhide all player models
-        std::vector<Player*>::iterator it;
+        //std::vector<Player*>::iterator it;
 
-        for (it = mPlayerVec.begin(); it != mPlayerVec.end(); ++it) {
-            (*it)->UnhideCraft();
-        }
+        //TODO: for (it = mPlayerVec.begin(); it != mPlayerVec.end(); ++it) {
+        //    (*it)->UnhideCraft();
+        //}
 
         activeCam = mCamera;
     }
@@ -4602,13 +4523,13 @@ void Race::ManagePlayerCamera() {
         //when we change camera and new camera is cockpit view of
         //this player, then hide this players craft so that we do not
         //see it in our own camera
-        if (playerCamera) {
+       /* if (playerCamera) {
             if (hidePlayerModel) {
                 this->currPlayerFollow->HideCraft();
             } else {
                 this->currPlayerFollow->UnhideCraft();
             }
-        }
+        }*/
 
         mGame->mSmgr->setActiveCamera(activeCam);
         currActiveCamera = activeCam;
@@ -4680,6 +4601,7 @@ void Race::AddWayPoint(EntityItem *entity, EntityItem *next) {
 
         line->A = entity->getCenter();
         line->B = next->getCenter();
+        line->irrLine.setLine(line->A, line->B);
 
         //line->name.clear();
         //line->name.append("Waypoint line ");

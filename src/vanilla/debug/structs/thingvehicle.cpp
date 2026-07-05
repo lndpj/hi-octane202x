@@ -323,7 +323,7 @@ void ParseThingVehicle::Update(size_t fromAdr) {
 
     Friction = mParentMemDump->mDataTools->AddFixedPointInt16_8R8NumVar("Friction", fromAdr + 0x1CE);
     FrictionLimit = mParentMemDump->mDataTools->AddFixedPointInt16_8R8NumVar("FrictionLimit", fromAdr + 0x1D0);
-    ThrustEffectiveness = mParentMemDump->mDataTools->AddFixedPointInt16_8R8NumVar("ThrustEffectiveness", fromAdr + 0x1D2);
+    ThrustEffectiveness = mParentMemDump->mDataTools->AddInt16_NumVar("ThrustEffectiveness", fromAdr + 0x1D2);
     Bounce = mParentMemDump->mDataTools->AddFixedPointInt16_8R8NumVar("Bounce", fromAdr + 0x1D4);
     MaximumZpos = mParentMemDump->mDataTools->AddFixedPointInt16_8R8NumVar("MaximumZpos", fromAdr + 0x1D6);
     SideslipFriction = mParentMemDump->mDataTools->AddFixedPointInt16_8R8NumVar("SideslipFriction", fromAdr + 0x1D8);

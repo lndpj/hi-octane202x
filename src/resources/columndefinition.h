@@ -49,6 +49,8 @@ public:
     int16_t get_G();
     int16_t get_H();
 
+    int16_t get_BlockId_forBlockNrFromBottom(uint8_t forBlockIdx);
+
     bool WriteChanges() override;
 
     //for level editor, write into data

@@ -33,6 +33,28 @@
 #define DEF_HUD_STARTSIGNAL_YELLOW_LIT 2
 #define DEF_HUD_STARTSIGNAL_GREEN_LIT 3
 
+//Threshold values taken from the original game
+//I added -1 at the end myself that I know when the list is over :)
+const int16_t FuelBarThresholds[18] = {     0, 0x180, 0x300,  0x480,  0x600,  0x780,  0x900,  0xA80,
+                                        0xC00, 0xD80, 0xF00, 0x1080, 0x1200, 0x1500, 0x1980, 0x1E00,
+                                       0x2280, -1};
+
+const int16_t VelocityBarThresholds[17] = { 0, 0x180, 0x300,  0x480,  0x600,  0x780,  0x900,  0xA80,
+                                        0xC00, 0xD80, 0xF00, 0x1200, 0x1500, 0x1980, 0x1E00, 0x2280,
+                                           -1};
+
+const int16_t BoosterBarThresholds[20] = {  0,  0x20E,  0x41C,  0x62A,  0x838,  0xA46,  0xC54,  0xE62,
+                                       0x1070, 0x127E, 0x148C, 0x169A, 0x18A8, 0x1AB6, 0x1CC4, 0x1ED2,
+                                       0x20E0, 0x22EE, 0x24FC,     -1};
+
+const int16_t ThrottleBarThresholds[20] = {  0,  0x20E,  0x41C,  0x62A,  0x838,  0xA46,  0xC54,  0xE62,
+                                       0x1070, 0x127E, 0x148C, 0x169A, 0x18A8, 0x1AB6, 0x1CC4, 0x1ED2,
+                                       0x20E0, 0x22EE, 0x24FC,     -1};
+
+const int16_t ShieldBarThresholds[7] = { 0,  0x682,  0xD04,  0x1386,  0x1A08,  0x208A,  -1};
+
+const int16_t AmmoBarThresholds[7] = { 0,  0x682,  0xD04,  0x1386,  0x1A08,  0x208A,  -1};
+
 struct HudDisplayPart{
      irr::core::vector2d<irr::s32> drawScrPosition;
      irr::video::ITexture* texture = nullptr;
@@ -41,8 +63,9 @@ struct HudDisplayPart{
      irr::core::rect<irr::s32> sourceRect;
 };
 
-class Player; //Forward declaration
+class VVehicle; //Forward declaration
 class Game; //Forward declaration
+class Race; //Forward declaration
 
 struct BannerTextMessageStruct {
     char* text = nullptr;
@@ -59,6 +82,7 @@ private:
     irr::u8 mHudState = DEF_HUD_STATE_NOTDRAWN;
 
     Game* mGame = nullptr;
+    Race* mRace = nullptr;
 
     //a negative altPanelTexNr input value means no alternative texture (image) is used
     void Add1PlayerHudDisplayPart(std::vector<HudDisplayPart*>* addToWhichBar,
@@ -83,7 +107,7 @@ private:
     // Variables start for Race HUD
     //******************************
 
-    Player* monitorWhichPlayer = nullptr;
+    VVehicle* monitorWhichPlayer = nullptr;
 
     std::vector<HudDisplayPart*>* shieldBar = nullptr;
     std::vector<HudDisplayPart*>* ammoBar = nullptr;
@@ -186,7 +210,12 @@ private:
 
     void DrawFinishedPlayerList();
     void DrawGasolineBar();
-    int GetNumberCurrentGasolineBars(irr::f32 gasolineVal);
+    int GetNumberCurrentFuelBars(int16_t fuelVal);
+    int GetNumberCurrentVelocityBars(irr::f32 velocityVal);
+    int GetNumberCurrentBoosterBars(int16_t boosterTriggerTime);
+    int GetNumberCurrentShieldBars(int16_t healthVal);
+    int GetNumberCurrentAmmoBars(int16_t ammoVal);
+    int GetNumberCurrentThrottleBars(irr::f32 movementSpeed);
     void DrawAmmoBar();
     void DrawShieldBar();
 
@@ -215,10 +244,10 @@ private:
     void PrecalculatePositions();
 
 public:
-    HUD(Game* game);
+    HUD(Game* game, Race* parentRace);
     ~HUD();
 
-    void SetMonitorWhichPlayer(Player* newPlayer);
+    void SetMonitorWhichPlayer(VVehicle* newPlayer);
     void DrawHUD1(irr::f32 deltaTime);
 
     //if showDurationSec is negative a permanent banner text message is created instead of the

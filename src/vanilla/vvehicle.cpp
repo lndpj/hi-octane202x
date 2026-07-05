@@ -45,6 +45,12 @@
 #include "debug/structs/cam.h"
 #include "debug/datatools.h"
 #include "../utils/boundingbox/collision.h"
+#include "../models/collectable.h"
+#include "../audio/sound.h"
+#include "spritething.h"
+#include "../resources/texture.h"
+#include "../models/levelterrain.h"
+#include "../draw/hud.h"
 
 //according to the emulator this function is supposed
 //to run periodically every ~45 ms
@@ -103,6 +109,22 @@ void VVehicle::TestCamera() {
     mRace->mGame->StopTime();
 }
 
+bool VVehicle::ShouldAmmoBarBlink() {
+    return mLowAmmoWarningAlreadyShown;
+}
+
+bool VVehicle::ShouldFuelBarBlink() {
+    return (mLowFuelWarningAlreadyShown || mEmptyFuelWarningAlreadyShown);
+}
+
+bool VVehicle::ShouldShieldBarBlink() {
+    return mLowShieldWarningAlreadyShown;
+}
+
+void VVehicle::SetName(char* playerName) {
+    strcpy(this->Stats.name, playerName);
+}
+
 void VVehicle::Update(irr::f32 frameDeltaTime) {
     //we want to increment mTimeSlice every 50ms
     //in the original game it starts counting at 0, increases every 50ms
@@ -123,7 +145,7 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
     }
 
     mUpdateVehicleTimeIntegrator += frameDeltaTime;
-    if (mUpdateVehicleTimeIntegrator >= 0.03) {
+    if (mUpdateVehicleTimeIntegrator >= 0.05) {
         //the original game does not use DeltaTime which
         //means depending on the speed the CPU is running the
         //game speed completely changes, which is not a good thing
@@ -190,6 +212,7 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         vehicle_move_mapwho(delta);
         vehicle_set_camera();
         vehicle_post_process();
+        //vehicle_terrain_effect(delta);
 
        // mRace->AdvModel = false;
    // }
@@ -198,6 +221,65 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         UpdateCoordinates();
 
         dbgTrackCurrWayPoint = mRace->mVTrack->track_waypoint_nearest(ThingData.Position);
+    }
+
+    //check if player entered a craft trigger region
+    CheckForTriggerCraftRegion();
+
+    //check if player is in an charging station
+    CheckForChargingStation();
+}
+
+void VVehicle::vehicle_terrain_effect(irr::core::vector3df delta) {
+    irr::core::vector3df position;
+    uint16_t v4;
+    uint16_t v5;
+    bool v6;
+    uint16_t v7;
+    uint16_t v8;
+    int32_t v9;
+    EffectVehicleThing* newEffectThing;
+
+    position = ThingData.Position + delta;
+    //we only create the vehicle terrain effects when
+    //we are close to the ground and not airbourne right now
+    if (!FlightModel.Flag.Airbourn) {
+        //we also need some speed
+        if (fabs(ThingData.Movement.SpeedActual) > 0.00390625f) {
+           v4 = mRace->mVCalc->map_colide_type(position);
+           v5 = v4;
+           v6 = (v4 == 0);
+           v7 = (v4 & 1);
+           if (!v6) {
+              v6 = (v7 == 0);
+              v8 = (v5 & 2);
+              if (!v6) {
+                 v8 = (v5 & 2);
+                 //Status Flag 0x400 is set when the Thing is visible
+                 //to a human player (means a human player is close enough distance wise);
+                 //If it is not visible (humans are all far away) then this flag is not set,
+                 //an no sprites will be created for this thing during this time.
+                 //Is an optimization technique
+                 //if ((thing->Status & 0x400) != 0) {
+                    v9 = 0;
+                    do {
+                        newEffectThing = new EffectVehicleThing(mRace->mGame->mSmgr,
+                                            mRace,
+                                            mRace->mTexLoader->spriteTex.at(17),
+                                            ThingData.Position, ThingData.Movement);
+                        ++v9;
+                        if (newEffectThing != nullptr) {
+                            newEffectThing->ThingData.Displacement.X = delta.X;
+                            newEffectThing->ThingData.Displacement.Y = delta.Y;
+                            newEffectThing->ThingData.Life = 150;
+
+                            mRace->AddSpriteThing(newEffectThing);
+                        }
+                    } while (v9 < 1 /*4*/);
+                    v8 = (v5 & 2);
+              }
+           }
+        }
     }
 }
 
@@ -220,6 +302,9 @@ void VVehicle::UpdateCoordinates() {
     IrrWorldCraftOrigin = IrrLocalCraftOrigin;
     trans.transformVect(IrrWorldCraftOrigin);
 
+    IrrWorldCraftTriggerSensor = IrrLocalCraftTriggerSensor;
+    trans.transformVect(IrrWorldCraftTriggerSensor);
+
     IrrWorldDirVecForward = (IrrWorldCraftFrontPnt - IrrWorldCraftBackPnt).normalize();
 }
 
@@ -233,11 +318,13 @@ void VVehicle::SetupFlightModelConstants() {
     IncrementLimit.AngleXY = mRace->mVCalc->VanillaRawAngleToMyFloatingAngle(3640);
     IncrementLimit.SpeedActual = mRace->mVCalc->FixedPointToFloat8D8(240);
 
-    mThrustEffectiveness = mRace->mVCalc->FixedPointToFloat8D8(100);
+    mThrustEffectiveness = 100;
     mSideslipFriction = mRace->mVCalc->FixedPointToFloat8D8(7);
     mSideslipToThrust = mRace->mVCalc->FixedPointToFloat8D8(60);
     mBounce = mRace->mVCalc->FixedPointToFloat8D8(50);
     Stats.Behind = 100;
+    Stats.MGunUpgrade = 0;
+    Stats.MRocketUpgrade = 0;
 
     mFriction = mRace->mVCalc->FixedPointToFloat8D8(10);
     mFrictionLimit = mRace->mVCalc->FixedPointToFloat8D8(15);
@@ -268,10 +355,17 @@ void VVehicle::SetupFlightModelConstants() {
     FlightModel.RearRight.ReboundLimit = mRace->mVCalc->FixedPointToFloat8D8(80);
 }
 
-VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
-                   irr::core::vector3d<irr::f32> NewFrontAt) {
+VVehicle::VVehicle(Race* mParentRace, std::string model, irr::core::vector3d<irr::f32> NewPosition,
+                   irr::core::vector3d<irr::f32> NewFrontAt, irr::u8 nrLaps, bool humanPlayer) {
 
+   //TODO 17.06.2026: Take care about nrLaps
    mRace = mParentRace;
+
+   if (humanPlayer) {
+       ControlOrigin = 1;
+   } else {
+       ControlOrigin = 8;
+   }
 
    SetupFlightModelConstants();
 
@@ -340,7 +434,7 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
 
    vehicle_setup_computer_character();
 
-   mCraftMesh = mRace->mGame->mSmgr->getMesh(irr::io::path("extract/models/car0-0.obj"));
+   mCraftMesh = mRace->mGame->mSmgr->getMesh(model.c_str());
    mCraftNode = mRace->mGame->mSmgr->addMeshSceneNode(mCraftMesh);
 
    //set player model initial orientation and position, later player craft is only moved by physics engine
@@ -357,7 +451,9 @@ VVehicle::VVehicle(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
    mCraftNode->setMaterialFlag(irr::video::EMF_FOG_ENABLE, true);
    //mCraftNode->setVisible(true);
 
-   mOutsideCam = mRace->mGame->mSmgr->addCameraSceneNode(0, irr::core::vector3df(0,0,0), irr::core::vector3df(0,0,100), -1, false);
+   //Prepare the Irrlicht bounding box
+   mCraftNode->updateAbsolutePosition();
+   mBoundingBox = mCraftNode->getTransformedBoundingBox();
 
    CalcCraftLocalFeatureCoordinates(NewPosition, NewFrontAt);
 }
@@ -496,7 +592,7 @@ void VVehicle::vehicle_calculate_thrust(irr::core::vector3df& delta) {
       }
     }
 
-    ThingData.Movement.SpeedActual = (mThrustEffectiveness * Increment.SpeedActual) / 0.390625f;
+    ThingData.Movement.SpeedActual = ((irr::f32)(mThrustEffectiveness) * Increment.SpeedActual) / 100.0f;
     mRace->mVCalc->move_displacement_set(delta, ThingData.Movement.AngleXY, 0.0f, (ThingData.Movement.SpeedActual / 16.0f));
     ThingData.Movement.SpeedActual = Increment.SpeedActual;
 }
@@ -548,7 +644,7 @@ void VVehicle::vehicle_calculate_momentum(irr::core::vector3df& delta) {
             Booster.Burn = Booster.BurnTime;
 
             irr::f32 hlpValue = Booster.InitialThrust * ((irr::f32)(Booster.BurnSetting) / 100.0f) *
-                    (mThrustEffectiveness / 100.0f);
+                    ((irr::f32)(mThrustEffectiveness) / 100.0f);
 
             mRace->mVCalc->move_displacement_set(position, ThingData.Movement.AngleXY,
                                                  0.0f, hlpValue);
@@ -559,7 +655,7 @@ void VVehicle::vehicle_calculate_momentum(irr::core::vector3df& delta) {
             if (FlightModel.Flag.Booster) {
                if (Booster.Burn) {
                    irr::f32 hlpValue2 = Booster.BurnThrust * ((irr::f32)(Booster.BurnSetting) / 100.0f) *
-                           (mThrustEffectiveness / 100.0f);
+                           ((irr::f32)(mThrustEffectiveness) / 100.0f);
                    mRace->mVCalc->move_displacement_set(position, ThingData.Movement.AngleXY,
                                                         0.0f, hlpValue2);
 
@@ -1426,14 +1522,6 @@ void VVehicle::vehicle_control() {
     return;
 }
 
-void VVehicle::UpdateCamera() {
-    irr::core::vector3df newCamPos = IrrWorldCraftOrigin - IrrWorldDirVecForward * 2.5f;
-    newCamPos.Y += 0.4f;
-
-    mOutsideCam->setPosition(newCamPos);
-    mOutsideCam->setTarget(IrrWorldCraftOrigin);
-}
-
 void VVehicle::vehicle_set_camera() {
     //the View is the position and orientation of the
     //player craft model
@@ -1734,8 +1822,7 @@ bool VVehicle::VehiclesCheckForCollision(VVehicle* vehicle1, VVehicle* vehicle2,
    return false;
 }
 
-void VVehicle::vehicle_post_process() {
-    return;
+void VVehicle::vehicle_post_process() {    
     irr::f32 speedFixed;
 
     /********************************
@@ -1750,6 +1837,383 @@ void VVehicle::vehicle_post_process() {
     }
 
     Conditions.FuelUsed += (speedFixed / 40);
+
+    /********************************
+     * Charging station effects     *
+     ********************************/
+
+    bool atCharger = false;
+
+    mCurrChargingFuel = false;
+    mCurrChargingAmmo = false;
+    mCurrChargingShield = false;
+
+    //Are we currently in an rearming station?
+    if ((ThingData.AffectStatus & 0x8) != 0) {
+        if (Stats.Weapons < 10000) {
+            //TODO: This code is supposed to run approx. every
+            //~50ms in the Playstation1 version of the game
+            //If we run with different speed we need to adjust the
+            //value we add below to keep charging speed constant
+            Stats.Weapons += 200;
+
+            atCharger = true;
+            mCurrChargingAmmo = true;
+        } else {
+
+                /*if (Conditions.WeaponsRechargeCounter) {
+                Conditions.WeaponsFullCounter = 50;
+               }*/
+
+            if (mHUD != nullptr) {
+                    if (!mBlockAdditionalAmmoFullMsg) {
+                        mHUD->CancelAllPermanentBannerTextMsg();
+                        this->mHUD->ShowBannerText((char*)"AMMO FULL", 4.0f);
+                        mBlockAdditionalAmmoFullMsg = true;
+                    }
+            }
+        }
+    }
+
+    //Are we currently in an fuel charging station?
+    if ((ThingData.AffectStatus & 0x10) != 0) {
+        if (Stats.Fuel < 10000) {
+            //TODO: This code is supposed to run approx. every
+            //~50ms in the Playstation1 version of the game
+            //If we run with different speed we need to adjust the
+            //value we add below to keep charging speed constant
+            Stats.Fuel += 200;
+
+            atCharger = true;
+            mCurrChargingFuel = true;
+        } else {
+
+            /*if (Conditions.FuelRechargeCounter) {
+            Conditions.FuelFullCounter = 50;
+            }*/
+
+            if (mHUD != nullptr) {
+                   if (!mBlockAdditionalFuelFullMsg) {
+                       mHUD->CancelAllPermanentBannerTextMsg();
+                       this->mHUD->ShowBannerText((char*)"FUEL FULL", 4.0f);
+                       mBlockAdditionalFuelFullMsg = true;
+                   }
+            }
+        }
+    }
+
+    //Are we currently in an shield repair station?
+    if ((ThingData.AffectStatus & 0x20) != 0) {
+        if (Stats.Health > 0) {
+            if (Stats.Health < 10000) {
+                //TODO: This code is supposed to run approx. every
+                //~50ms in the Playstation1 version of the game
+                //If we run with different speed we need to adjust the
+                //value we add below to keep charging speed constant
+                Stats.Health += 200;
+
+                atCharger = true;
+                mCurrChargingShield = true;
+
+                //TODO: something still not implemented with BulletCount and
+                //MissileCount
+            } else {
+
+                    /*if (Conditions.HealthRechargeCounter) {
+                           Conditions.HealthFullCounter = 50;
+                    }*/
+
+                    if (mHUD != nullptr) {
+                            if (!this->mBlockAdditionalShieldFullMsg) {
+                                mHUD->CancelAllPermanentBannerTextMsg();
+                                this->mHUD->ShowBannerText((char*)"SHIELD FULL", 4.0f);
+                                mBlockAdditionalShieldFullMsg = true;
+                            }
+                    }
+
+                    //TODO: something still not implemented with BulletCount and
+                    //MissileCount
+            }
+        }
+    }
+
+    //This is mode code implementation, not done this way in the original game!
+    if (mCurrChargingFuel != mLastChargingFuel) {
+        if (mCurrChargingFuel) {
+            //charging fuel started
+             if (atCharger) {
+               if (mHUD != nullptr) {
+                //make this a permanent message by specification of showDurationSec = -1.0f
+                this->mHUD->ShowBannerText((char*)"FUEL RECHARGING", -1.0f);
+
+                mBlockAdditionalFuelFullMsg = false;
+               }
+             }
+        } else {
+            if (mHUD != nullptr) {
+                this->mHUD->CancelAllPermanentBannerTextMsg();
+            }
+        }
+    }
+
+    if (mCurrChargingAmmo != mLastChargingAmmo) {
+        if (mCurrChargingAmmo) {
+            //charging Ammo started
+             if (atCharger) {
+               if (mHUD != nullptr) {
+                //make this a permanent message by specification of showDurationSec = -1.0f
+                this->mHUD->ShowBannerText((char*)"AMMO RECHARGING", -1.0f);
+
+                mBlockAdditionalAmmoFullMsg = false;
+               }
+             }
+        } else {
+            if (mHUD != nullptr) {
+                this->mHUD->CancelAllPermanentBannerTextMsg();
+            }
+        }
+    }
+
+    if (mCurrChargingShield != mLastChargingShield) {
+        if (mCurrChargingShield) {
+            //charging shield started
+             if (atCharger) {
+               if (mHUD != nullptr) {
+                //make this a permanent message by specification of showDurationSec = -1.0f
+                this->mHUD->ShowBannerText((char*)"SHIELD RECHARGING", -1.0f);
+
+                mBlockAdditionalShieldFullMsg = false;
+               }
+             }
+        } else {
+            if (mHUD != nullptr) {
+                this->mHUD->CancelAllPermanentBannerTextMsg();
+            }
+        }
+    }
+
+    mLastChargingFuel = mCurrChargingFuel;
+    mLastChargingAmmo = mCurrChargingAmmo;
+    mLastChargingShield = mCurrChargingShield;
+
+    if (atCharger) {
+         if (mPlayerCurrentlyCharging == false) {
+                mPlayerCurrentlyCharging = true;
+
+                //play sound
+                //only for human player
+                if (ControlOrigin == 1) {
+                    //we need to keep a pntr to the looping sound source to be able to stop it
+                    //later again!
+                    mChargingSoundSource = this->mRace->mSoundEngine->PlaySound(SRES_GAME_REFUEL, true);
+                }
+        }
+    } else {
+        if (mPlayerCurrentlyCharging == true) {
+               mPlayerCurrentlyCharging = false;
+
+               //stop playing sound from looping sound source
+               //only for human player
+               if (ControlOrigin == 1) {
+                   this->mRace->mSoundEngine->StopLoopingSound(mChargingSoundSource);
+                   mChargingSoundSource = nullptr;
+               }
+       }
+    }
+
+    /********************************
+     * Collectable effects          *
+     ********************************/
+
+    //Player picks up Invisible powerup?
+    /*if ((ThingData.AffectStatus & 0x100) != 0) {
+        //TODO: Add this later if this number has any effect somewhere
+        Stats.Invisible = 250;
+    }
+
+    //Player picks up Invincable powerup?
+    if ((ThingData.AffectStatus & 0x80) != 0) {
+        //TODO: Add this later if this number has any effect somewhere
+        Stats.Invincable = 100;
+    }*/
+
+    //Player picks up a minigun upgrade?
+    if ((ThingData.AffectStatus & 0x1000) != 0) {
+        ++Stats.MGunUpgrade;
+    }
+
+    //Player picks up a rocket upgrade?
+    if ((ThingData.AffectStatus & 0x2000) != 0) {
+        ++Stats.MRocketUpgrade;
+    }
+
+    //Player picks up a booster upgrade?
+    if ((ThingData.AffectStatus & 0x4000) != 0) {
+        ++Booster.Upgrade;
+    }
+
+    //Player picks up a HealthExtra PowerUp?
+    if ((ThingData.AffectStatus & 0x8000) != 0) {
+        Stats.Health += 2500;
+
+        //TODO: Add something missing with bulletCount
+    }
+
+    //Player picks up a HealthFull PowerUp?
+    if ((ThingData.AffectStatus & 0x10000) != 0) {
+        Stats.Health = 10000; //Full health equals to 10000
+        //TODO: Add something missing with damage count reset
+    }
+
+    //Player picks up a HealthDouble PowerUp?
+    if ((ThingData.AffectStatus & 0x20000) != 0) {
+        Stats.Health = 20000; //Double health equals to 20000
+        //TODO: Add something missing with damage count reset
+    }
+
+    //Player picks up a Ammo PowerUp?
+    if ((ThingData.AffectStatus & 0x40000) != 0) {
+        Stats.Weapons += 2500;
+    }
+
+    //Player picks up a Ammo Full PowerUp?
+    if ((ThingData.AffectStatus & 0x80000) != 0) {
+        Stats.Weapons = 10000;
+    }
+
+    //Player picks up a Ammo Double PowerUp?
+    if ((ThingData.AffectStatus & 0x100000) != 0) {
+        Stats.Weapons = 20000;
+    }
+
+    //Player picks up a Fuel Extra PowerUp?
+    if ((ThingData.AffectStatus & 0x200000) != 0) {
+        Stats.Fuel += 2500;
+    }
+
+    //Player picks up a Fuel Full PowerUp?
+    if ((ThingData.AffectStatus & 0x400000) != 0) {
+        Stats.Fuel = 10000;
+    }
+
+    //Player picks up a Fuel Double PowerUp?
+    if ((ThingData.AffectStatus & 0x800000) != 0) {
+        Stats.Fuel = 20000;
+    }
+
+   /* if (currChargingAmmo) {
+        ++Conditions.WeaponsRechargeCounter;
+    } else {
+        Conditions.WeaponsRechargeCounter = 0;
+    }
+
+    if (currChargingHealth) {
+        ++Conditions.HealthRechargeCounter;
+    } else {
+        Conditions.HealthRechargeCounter = 0;
+    }
+
+    if (currChargingFuel) {
+        ++Conditions.FuelRechargeCounter;
+    } else {
+        Conditions.FuelRechargeCounter = 0;
+    }
+
+    if (currChargingAmmo || currChargingFuel || currChargingHealth) {
+        //only play sound for Human controlled player
+        if (ControlOrigin == 1) {
+            this->mRace->mSoundEngine->PlaySound(SRES_GAME_REFUEL);
+        }
+    }*/
+
+    /********************************
+     * Fuel Low/Empty warnings      *
+     ********************************/
+
+    int8_t fuelLowCounter;
+
+    if ((Stats.Fuel - 1) >= 4000) {
+        Conditions.FuelLowCounter = 0;
+        mLowFuelWarningAlreadyShown = false;
+    } else {
+        fuelLowCounter = Conditions.FuelLowCounter;
+        if (fuelLowCounter < 64) {
+            Conditions.FuelLowCounter = fuelLowCounter + 1;
+        }
+    }
+
+    if (!mEmptyFuelWarningAlreadyShown && (Stats.Fuel <= 0)) {
+        if (mHUD != nullptr) {
+            this->mHUD->ShowBannerText((char*)"FUEL EMPTY", 4.0f, true);
+        }
+        mEmptyFuelWarningAlreadyShown = true;
+    }
+
+    if (mEmptyFuelWarningAlreadyShown && (Stats.Fuel > 0)) {
+          mEmptyFuelWarningAlreadyShown = false;
+    }
+
+    if ((!mLowFuelWarningAlreadyShown) && (!mEmptyFuelWarningAlreadyShown) && (Conditions.FuelLowCounter == 1)) {
+        if (mHUD != nullptr) {
+            this->mHUD->ShowBannerText((char*)"FUEL LOW", 4.0f, true);
+        }
+        mLowFuelWarningAlreadyShown = true;
+    }
+
+    /********************************
+     * Shield Low/Empty warnings    *
+     ********************************/
+
+    int8_t healthLowCounter;
+
+    if ((Stats.Health - 1) >= 4000) {
+        Conditions.HealthLowCounter = 0;
+        mLowShieldWarningAlreadyShown = false;
+    } else {
+        healthLowCounter = Conditions.HealthLowCounter;
+        if (healthLowCounter < 64) {
+            Conditions.HealthLowCounter = healthLowCounter + 1;
+        }
+    }
+
+    if ((!mLowShieldWarningAlreadyShown) && (Conditions.HealthLowCounter == 1)) {
+        if (mHUD != nullptr) {
+            this->mHUD->ShowBannerText((char*)"SHIELD LOW", 4.0f, true);
+        }
+        mLowShieldWarningAlreadyShown = true;
+    }
+
+    /********************************
+     * Ammo Low/Empty warnings      *
+     ********************************/
+
+    int8_t ammoLowCounter;
+
+    if ((Stats.Weapons - 1) >= 4000) {
+        Conditions.WeaponsLowCounter = 0;
+        mLowAmmoWarningAlreadyShown = false;
+    } else {
+        ammoLowCounter = Conditions.WeaponsLowCounter;
+        if (ammoLowCounter < 64) {
+            Conditions.WeaponsLowCounter = ammoLowCounter + 1;
+        }
+    }
+
+    if ((!mLowAmmoWarningAlreadyShown) && (Conditions.WeaponsLowCounter == 1)) {
+        if (mHUD != nullptr) {
+            this->mHUD->ShowBannerText((char*)"AMMO LOW", 4.0f, true);
+        }
+        mLowAmmoWarningAlreadyShown = true;
+    }
+
+    ThingData.AffectStatus = 0;
+    Stats.Velocity *= 1.3f;
+}
+
+//Returns true if vehicle is controlled by
+//computer player
+bool VVehicle::IsControlledByComputer() {
+    return (ControlOrigin == 8);
 }
 
 uint8_t VVehicle::vehicle_colide_final_check_sean(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta) {
@@ -1972,6 +2436,10 @@ void VVehicle::UpdateSceneNode() {
     irr::core::vector3df newPos = mRace->mVCalc->VanillaToIrrlichtCoord(View.Position);
     mCraftNode->setPosition(newPos);
     //mCraftNode->setVisible(false);
+
+    //Update the Irrlicht bounding box
+    mCraftNode->updateAbsolutePosition();
+    mBoundingBox = mCraftNode->getTransformedBoundingBox();
 }
 
 void VVehicle::DrawDebug() {
@@ -2073,6 +2541,596 @@ void VVehicle::CalcCraftLocalFeatureCoordinates(irr::core::vector3d<irr::f32> Ne
     irr::core::vector3df WCDirVecCOGtoRight = NewPosition + sideDirToLeft * WCDirVecFrontToCOG.getLength();
     matr.transformVect(WCDirVecCOGtoRight);
     IrrLocalCraftRightPnt = WCDirVecCOGtoRight;
+
+    //get the size of the craft 3D model bounding box
+    irr::core::vector3df hlpVec = this->mCraftNode->getTransformedBoundingBox().getExtent();
+
+    //Create a position slightly in front of the craft that
+    //allows to trigger things with the player craft
+    IrrLocalCraftTriggerSensor.set(0.0f, 0.0f, -0.5f * hlpVec.Z - this->mRace->mLevelTerrain->segmentSize);
+}
+
+void VVehicle::FinishedLap() {
+    // //add new lap time to lap time list
+    // //add the item in a way so that the list remains sorted
+    // std::vector<LAPTIMEENTRY>::iterator idx;
+
+    // //remember data from the last two laps, we want to access this information
+    // //quickly from the Hud without searching in the lap time vector
+    // //as we need this data every time we want to render a frame!
+    // if (mPlayerStats->currLapNumber > 1) {
+    //     mPlayerStats->LapBeforeLastLap.lapNr = mPlayerStats->lastLap.lapNr;
+    //     mPlayerStats->LapBeforeLastLap.lapTimeMultiple40mSec = mPlayerStats->lastLap.lapTimeMultiple40mSec;
+    // }
+
+    // if (mPlayerStats->currLapNumber > 0) {
+    //     mPlayerStats->lastLap.lapNr = mPlayerStats->currLapNumber;
+    //     mPlayerStats->lastLap.lapTimeMultiple40mSec = mPlayerStats->currLapTimeMultiple40mSec;
+    // }
+
+    // //make sure we have at least one laptime entry
+    // if (mPlayerStats->lapTimeList.size() > 0) {
+    //     for(idx = mPlayerStats->lapTimeList.begin(); idx < mPlayerStats->lapTimeList.end(); idx++)
+    //         {
+    //             if (mPlayerStats->currLapTimeMultiple40mSec <  (*idx).lapTimeMultiple40mSec)
+    //                 break;
+    //         }
+    // } else idx = mPlayerStats->lapTimeList.end();
+
+    // LAPTIMEENTRY newEntry;
+    // newEntry.lapNr = mPlayerStats->currLapNumber;
+    // newEntry.lapTimeMultiple40mSec = mPlayerStats->currLapTimeMultiple40mSec;
+
+    // mPlayerStats->lapTimeList.insert(idx, newEntry);
+
+    currLapNumber++;
+
+    //LogMessage((char*)"I have finished the current lap");
+
+    //has this player finished the last lap of this race?
+    if (currLapNumber > raceNumberLaps) {
+        FinishedRace();
+    }
+
+    //do we need to show HUD Message for "final lap"
+    //TODO: commented out, does not compile anymore
+    // if (mPlayerStats->currLapNumber == mPlayerStats->raceNumberLaps) {
+    //     if (this->mRace->currPlayerFollow != nullptr) {
+    //         if (this->mRace->currPlayerFollow == this) {
+    //             if (mHUD != nullptr) {
+    //                 mHUD->ShowGreenBigText((char*)"FINAL LAP", 4.0f, true);
+    //             }
+
+    //             //in demo mode prevent the yee-haw sound
+    //             //from playing
+    //             if (!mRace->mDemoMode) {
+    //                 //play the yee-haw sound
+    //                 mRace->mSoundEngine->PlaySound(SRES_GAME_FINALLAP, false);
+    //             }
+    //         }
+    //     }
+    // }
+
+    //reset current lap time
+    //mPlayerStats->currLapTimeExact = 0.0;
+    //mPlayerStats->currLapTimeMultiple40mSec = 0;
+}
+
+void VVehicle::FinishedRace() {
+    // /* after the player is finished with the race
+    //  * the game uses the external view, while a
+    //  * computer player takes over controlling this craft */
+    // this->mCurrentViewMode = CAMERA_EXTERNALVIEW;
+
+    // mPlayerStats->mHasFinishedRace = true;
+
+    // //create a copy of the final player stats
+    // *mFinalPlayerStats = *mPlayerStats;
+
+    // //Update a connected HUD as well
+    // //so that change of mHasFinishedRace changes
+    // //the HUD state
+    // UpdateHUDState();
+
+    // LogMessage((char*)"I have finished the race");
+
+    // //also tell the race that I am finished
+    // mRace->PlayerHasFinishedLastLapOfRace(this);
+
+    // //if this is a human player we need to reconfigure it
+    // //as a computer player, so that the computer player
+    // //can continue moving it over the race track
+    // if (mHumanPlayer) {
+    //     CpTakeOverHuman();
+    // }
+}
+
+void VVehicle::CrossedCheckPoint(irr::s32 valueCrossedCheckPoint, irr::s32 numberOfCheckpoints) {
+    //if this player has already finished the race ignore checkpoints
+    if (mHasFinishedRace)
+        return;
+
+    //crossed checkpoint is the one we need to cross next?
+    if (this->nextCheckPointValue == valueCrossedCheckPoint) {
+        //did we cross the finish line the first time after start?
+        //if so we need to advance the race state
+        if ((lastCrossedCheckPointValue == 0) && (valueCrossedCheckPoint == 0)) {
+            this->mRace->PlayerCrossesFinishLineTheFirstTime();
+        }
+
+        //did the cross the finish line?
+        if ((lastCrossedCheckPointValue !=0) && (valueCrossedCheckPoint == 0)) {
+            //we finished a complete lap
+            this->FinishedLap();
+        }
+
+        //calculate next checkpoint target value
+        nextCheckPointValue++;
+
+        //if we exceed number of available waypoints
+        //the next expected waypoint is the finish line again (with value 0)
+        if (nextCheckPointValue > (numberOfCheckpoints - 1)) {
+            nextCheckPointValue = 0;
+        }
+
+        //remember value of last crossed way point
+        lastCrossedCheckPointValue = valueCrossedCheckPoint;
+    }
+}
+
+void VVehicle::CheckForTriggerCraftRegion() {
+    //remember last trigger region before next update
+    mLastCraftTriggerRegion = mCurrentCraftTriggerRegion;
+
+    std::vector<MapTileRegionStruct*>::iterator itRegion;
+
+    mCurrentCraftTriggerRegion = nullptr;
+
+    //16.05.2025: There is a (hidden) shortcut in level 2 that is opened by "driving" into the
+    //level wall. Problem is if we use the ships (origin middle) position to calculate the cell for craft trigger (which I did at the beginning),
+    //this point does not reach into the trigger area of the shortcut (because the heightmap collision detection and prevention
+    //prevents this middle coordinate to penetrate deep enough into the wall), and like this the way only opens when trying a lot of times,
+    //and with a lot of luck. It works but not acceptable.
+    //To make it work much better I decided to instead use a craft coordinate much further in the front of the craft, so that it can
+    //penetrate deep enough, and cause the craft trigger to fire much much easier.
+    int mTrigCurrPosCellX = -(int)(IrrWorldCraftTriggerSensor.X / mRace->mLevelTerrain->segmentSize);
+    int mTrigCurrPosCellY = (int)(IrrWorldCraftTriggerSensor.Z / mRace->mLevelTerrain->segmentSize);
+
+    //check for each trigger region in level
+    for (itRegion = this->mRace->mTriggerRegionVec.begin(); itRegion != this->mRace->mTriggerRegionVec.end(); ++itRegion) {
+        //only check for regions which are a playercraft trigger region
+        if ((*itRegion)->regionType == LEVELFILE_REGION_TRIGGERCRAFT) {
+            //is the player inside this area?
+            if (this->mRace->mLevelTerrain->CheckPosInsideRegion(mTrigCurrPosCellX,
+                    mTrigCurrPosCellY, (*itRegion))) {
+
+                //assume craft can only be in one region at a certain time
+                //craft trigger regions should not overlap!
+                mCurrentCraftTriggerRegion = (*itRegion);
+                break;
+            }
+        }
+    }
+
+    //did we enter a new trigger region?
+    //if so we need to trigger the trigger event and tell the race
+    //about it
+    if (mCurrentCraftTriggerRegion != nullptr) {
+        if (mCurrentCraftTriggerRegion != mLastCraftTriggerRegion) {
+            //yes, we hit a new trigger region
+
+            //is this a one time trigger only trigger?
+            if (((*itRegion)->mOnlyTriggerOnce && (!(*itRegion)->mAlreadyTriggered))
+                    || (!(*itRegion)->mOnlyTriggerOnce)) {
+                       if ((*itRegion)->mOnlyTriggerOnce) {
+                           (*itRegion)->mAlreadyTriggered = true;
+                       }
+
+                       mRace->PlayerEnteredCraftTriggerRegion(this, mCurrentCraftTriggerRegion);
+            }
+        }
+    }
+}
+
+//is called when the player collected a collectable item of the
+//level
+bool VVehicle::CollectedCollectable(Collectable* whichCollectable) {
+    //depending on the type of entity/collectable alter player stats
+    Entity::EntityType type = whichCollectable->GetCollectableType();
+
+    switch (type) {
+        case Entity::EntityType::ExtraFuel:
+            //ExtraFuel item can only be picked up by the player, if fuel is currently
+            //not at max
+            if (Stats.Fuel >= 10000) {
+                //fuel is full, can not pick this item up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"EXTRA FUEL", 4.0f);
+            }
+
+            //Tell vehicle that we collected ExtraFuel
+            ThingData.AffectStatus |= 0x200000;
+            break;
+
+        case Entity::EntityType::FuelFull:
+            //FuelFull item can only be picked up by the player, if fuel is currently
+            //not at max
+            if (Stats.Fuel >= 10000) {
+                //fuel is full, can not pick this item up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"FUEL FULL", 4.0f);
+            }
+
+            //Tell vehicle that we collected ExtraFull
+            ThingData.AffectStatus |= 0x400000;
+            break;
+
+        case Entity::EntityType::DoubleFuel:
+            //DoubleFuel item can only be picked up by the player, if fuel is not
+            //already at 20000
+            if (Stats.Fuel >= 20000) {
+                //player has already doubled fuel level, can not pick this item up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"DOUBLE FUEL", 4.0f);
+            }
+
+            //Tell vehicle that we collected DoubleFuel
+            ThingData.AffectStatus |= 0x800000;
+            break;
+
+        case Entity::EntityType::ExtraAmmo:
+            //This item can only be picked up by the player if the ammo
+            //is still below max level
+            if (Stats.Weapons >= 10000) {
+                //ammo already full, collectible is not picked up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"EXTRA AMMO", 4.0f);
+            }
+
+            //Tell vehicle that we collected ExtraAmmo
+            ThingData.AffectStatus |= 0x40000;
+            break;
+
+        case Entity::EntityType::AmmoFull:
+            //This item can only be picked up by the player if the ammo
+            //is still below max level
+            if (Stats.Weapons >= 10000) {
+                //ammo already full, collectible is not picked up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"AMMO FULL", 4.0f);
+            }
+
+            //Tell vehicle that we collected AmmoFull
+            ThingData.AffectStatus |= 0x80000;
+            break;
+
+        case Entity::EntityType::DoubleAmmo:
+            //DoubleAmmo item can only be picked up by the player, if ammo is not
+            //already at 20000
+            if (Stats.Weapons >= 20000) {
+                //player has already doubled ammo level, can not pick this item up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"DOUBLE AMMO", 4.0f);
+            }
+
+            //Tell vehicle that we collected DoubleAmmo
+            ThingData.AffectStatus |= 0x100000;
+            break;
+
+        case Entity::EntityType::ExtraShield:
+            //This item can only be picked up by the player,
+            //if the player has not already full shield
+            if (Stats.Health >= 10000) {
+                //Shield already full, collectible is not picked up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"EXTRA SHIELD", 4.0f);
+            }
+
+            ThingData.AffectStatus |= 0x8000;
+            break;
+
+        case Entity::EntityType::ShieldFull:
+            //This item can only be picked up by the player,
+            //if the player has not already full shield
+            if (Stats.Health >= 10000) {
+                //Shield already full, collectible is not picked up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"SHIELD FULL", 4.0f);
+            }
+
+            ThingData.AffectStatus |= 0x10000;
+            break;
+
+        case Entity::EntityType::DoubleShield:
+            //DoubleShield item can only be picked up by the player, if Shield is not
+            //already at 20000
+            if (Stats.Health >= 20000) {
+                //player has already doubled Shield level, can not pick this item up
+                return false;
+            }
+
+            if (mHUD != nullptr) {
+                this->mHUD->ShowBannerText((char*)"DOUBLE SHIELD", 4.0f);
+            }
+
+            ThingData.AffectStatus |= 0x20000;
+            break;
+
+        case Entity::EntityType::BoosterUpgrade:
+            //can only be picked up if booster upgrade level is not already
+            //at max
+            if (Booster.Upgrade != 3) {
+                //we can make another upgrade
+                ThingData.AffectStatus |= 0x4000;
+
+                if (mHUD != nullptr) {
+                    this->mHUD->ShowBannerText((char*)"BOOSTER UPGRADED", 4.0f);
+                }
+            } else {
+                return false;
+            }
+
+            break;
+
+        case Entity::EntityType::MissileUpgrade:
+            //can only be picked up if missile upgrade level is not already
+            //at max
+            if (Stats.MRocketUpgrade != 3) {
+                //we can make another upgrade
+                ThingData.AffectStatus |= 0x2000;
+
+                if (mHUD != nullptr) {
+                    this->mHUD->ShowBannerText((char*)"MISSILE UPGRADED", 4.0f);
+                }
+            } else {
+                return false;
+            }
+
+            break;
+
+        case Entity::EntityType::MinigunUpgrade:
+            //can only be picked up if mini-gun upgrade level is not already
+            //at max
+            if (Stats.MGunUpgrade != 3) {
+                //we can make another upgrade
+                ThingData.AffectStatus |= 0x1000;
+
+                if (mHUD != nullptr) {
+                    this->mHUD->ShowBannerText((char*)"MINIGUN UPGRADED", 4.0f);
+                }
+            } else {
+                return false;
+            }
+
+            break;
+
+        case Entity::EntityType::UnknownShieldItem:
+            //uncomment the next 2 lines to show this items also to the player
+            // collectable = new Collectable(41, entity.get_Center(), color, driver);
+            // ENTCollectables_List.push_back(collectable);
+            break;
+
+        case Entity::EntityType::UnknownItem:
+        case Entity::EntityType::Unknown:
+            //uncomment the next 2 lines to show this items also to the player
+            // collectable = new Collectable(50, entity.get_Center(), color, driver);
+            // ENTCollectables_List.push_back(collectable);
+            break;
+
+         //all the other entities we do not care here
+        default:
+            break;
+    }
+
+    //play sound if not computer player
+    if (this->ControlOrigin != 8) {
+        mRace->mSoundEngine->PlaySound(SRES_GAME_PICKUP);
+    }
+
+    //collectible was picked up
+    return true;
+}
+
+void VVehicle::CheckForChargingStation() {
+    bool cShield;
+    bool cFuel;
+    bool cAmmo;
+
+    int mCurrPosCellX = (int)(ThingData.Position.X / mRace->mLevelTerrain->segmentSize);
+    int mCurrPosCellY = (int)(ThingData.Position.Y / mRace->mLevelTerrain->segmentSize);
+
+    //see if we are currently in an charging area with this player
+    this->mRace->mLevelTerrain->CheckPosInsideChargingRegion(mCurrPosCellX, mCurrPosCellY,
+                                                             cShield, cFuel, cAmmo);
+
+    if (cShield) {
+        //Player craft is in shield charging area
+        this->ThingData.AffectStatus |= 0x20;
+    }
+
+    if (cAmmo) {
+       //Player craft is in ammo charging area
+       this->ThingData.AffectStatus |= 0x8;
+    }
+
+    if (cFuel) {
+        //Player craft is in fuel charging area
+        this->ThingData.AffectStatus |= 0x10;
+    }
+}
+
+void VVehicle::SetMyHUD(HUD* pntrHUD) {
+    mHUD = pntrHUD;
+
+    //I got a new HUD connected
+    //we need to tell the HUD the correct
+    //HUD state we want for the current player
+    //state we have
+    UpdateHUDState();
+}
+
+HUD* VVehicle::GetMyHUD() {
+    return mHUD;
+}
+
+irr::u32 VVehicle::GetCurrentState() {
+    return this->mPlayerCurrentState;
+}
+
+void VVehicle::SetNewState(irr::u32 newPlayerState) {
+    mPlayerCurrentState = newPlayerState;
+
+    switch (newPlayerState) {
+        case STATE_PLAYER_BEFORESTART: {
+            mPlayerCanMove = false;
+            mPlayerCanShoot = false;
+            break;
+        }
+
+        //This is the inbetween state after green light comes on
+        //and the first time a player crosses the finish line
+        //in this state the players move towards the start line, and
+        //computer players do not seem to attack
+        //Human player is allowed to attack
+        //Also the HUD is not shown yet
+        case STATE_PLAYER_ONFIRSTWAYTOFINISHLINE: {
+            mPlayerCanMove = true;
+            mPlayerCanShoot = true;
+            break;
+        }
+
+        case STATE_PLAYER_RACING: {
+            mPlayerCanMove = true;
+            mPlayerCanShoot = true;
+            break;
+        }
+
+        case STATE_PLAYER_EMPTYFUEL: {
+            mPlayerCanMove = false;
+            mPlayerCanShoot = false;
+            break;
+        }
+
+        case STATE_PLAYER_BROKEN: {
+            mPlayerCanMove = false;
+            mPlayerCanShoot = false;
+            break;
+        }
+
+        case STATE_PLAYER_GRABEDBYRECOVERYVEHICLE: {
+           mPlayerCanMove = false;
+           mPlayerCanShoot = false;
+           break;
+        }
+   }
+
+    //in the finished state the player should be able to
+    //move, but not shoot; the human player craft is taken
+    //over in this state by the computer player control
+    if (mHasFinishedRace) {
+        mPlayerCanMove = true;
+        mPlayerCanShoot = false;
+    }
+
+    //Update a connected HUD as well
+    UpdateHUDState();
+}
+
+void VVehicle::UpdateHUDState() {
+    if (mHUD == nullptr)
+        return;
+
+    irr::u32 state = this->GetCurrentState();
+
+    //there is one exception, if we are in demo mode
+    //do not draw the normal HUD, only before start
+    if (this->mRace->mDemoMode) {
+        if ((state != STATE_PLAYER_BEFORESTART) && (state != STATE_PLAYER_ONFIRSTWAYTOFINISHLINE)) {
+            mHUD->SetHUDState(DEF_HUD_STATE_NOTDRAWN);
+            return;
+        }
+    }
+
+    //make sure the HUD state if correct for us
+    switch (state) {
+        case STATE_PLAYER_BEFORESTART:
+        case STATE_PLAYER_ONFIRSTWAYTOFINISHLINE:
+        {
+            mHUD->SetHUDState(DEF_HUD_STATE_STARTSIGNAL);
+            break;
+        }
+    case STATE_PLAYER_EMPTYFUEL:
+    case STATE_PLAYER_RACING: {
+            //19.04.2025: If the player has already finished the race
+            //then do not draw HUD anymore, otherwise draw it again
+            if (!mHasFinishedRace) {
+                mHUD->SetHUDState(DEF_HUD_STATE_RACE);
+            } else {
+                mHUD->SetHUDState(DEF_HUD_STATE_BROKENPLAYER);
+            }
+            break;
+        }
+
+    case STATE_PLAYER_GRABEDBYRECOVERYVEHICLE:
+    case STATE_PLAYER_BROKEN:  {
+        //if there is a connected HUD we need to disable
+        //its drawing, because if the player is destroyed there
+        //is an outside view at the craft, and for an outside view
+        //there is no HUD visible
+        mHUD->SetHUDState(DEF_HUD_STATE_BROKENPLAYER);
+        break;
+    }
+  }
+}
+
+void VVehicle::StartPlayingWarningSound() {
+   //already warning playing?
+   if (mWarningSoundSource == nullptr) {
+       //no, start playing new warning
+       //we need to keep a pntr to the looping sound source to be able to stop it
+       //later again!
+       mWarningSoundSource = this->mRace->mSoundEngine->PlaySound(SRES_GAME_WARNING, true);
+   }
+}
+
+void VVehicle::StopPlayingWarningSound() {
+   //warning really playing?
+   if (mWarningSoundSource != nullptr) {
+       //yes, stop it
+       this->mRace->mSoundEngine->StopLoopingSound(mWarningSoundSource);
+       mWarningSoundSource = nullptr;
+   }
+}
+
+void VVehicle::SetCurrClosestWayPointLink(std::pair <WayPointLinkInfoStruct*, irr::core::vector3df> newClosestWayPointLink) {
+    if (newClosestWayPointLink.first != nullptr) {
+        this->currClosestWayPointLink = newClosestWayPointLink;
+        this->projPlayerPositionClosestWayPointLink = newClosestWayPointLink.second;
+    }
 }
 
 VVehicle::~VVehicle() {
