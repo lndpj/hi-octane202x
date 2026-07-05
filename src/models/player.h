@@ -155,61 +155,6 @@ typedef struct PlayerStats {
     irr::u8 mPlayerCurrentState;
 } PLAYERSTATS;
 
-//struct for one heightmap collision "sensor" element
-//which consists of 2 points for terrain stepness measurement
-typedef struct HMapCollSensor {
-    //local coordinate for the craft 3D Model of the sensor element point
-    irr::core::vector3df localPnt1;
-    irr::core::vector3df localPnt2;
-
-    //latest world coordinate for the sensor element point
-    irr::core::vector3df wCoordPnt1;
-    irr::core::vector3df wCoordPnt2;
-
-    //latest terrain cell coordinate for the sensor
-    //element point
-    irr::core::vector2di cellPnt1;
-    irr::core::vector2di cellPnt2;
-
-    //current plane for intersection
-    irr::core::vector3df planePnt1;
-    irr::core::vector3df planePnt2;
-
-    //the current intersectionPnt
-    irr::core::vector3df intersectionPnt;
-
-    //current measured stepness;
-    irr::f32 stepness;
-
-    //the current distance to the
-    //detected collision point
-    irr::f32 distance;
-
-    //if the craft is close to a high slope (collision) at this sensor element
-    //stop using this point for craft leaning (height) control
-    //if we would not do this then the craft would be able to climb
-    //up the slope, and the collision detection does not stop us worst case
-    bool deactivateHeightControl;
-
-    irr::u32 collCnt = 0;
-
-    irr::u32 currState;
-
-    //for debugging print purposes
-    char sensorName[10];
-} HMAPCOLLSENSOR;
-
-typedef struct {
-    HMAPCOLLSENSOR* front;
-    HMAPCOLLSENSOR* frontRight45deg;
-    HMAPCOLLSENSOR* frontLeft45deg;
-    HMAPCOLLSENSOR* right;
-    HMAPCOLLSENSOR* left;
-    HMAPCOLLSENSOR* backRight45deg;
-    HMAPCOLLSENSOR* backLeft45deg;
-    HMAPCOLLSENSOR* back;
-} HMAPCOLLSTRUCT;
-
 class HUD; //Forward declaration
 class Race; //Forward declaration
 class SmokeTrail; //Forward declaration
@@ -238,12 +183,6 @@ public:
 
     void ExecuteCpPlayerLogic(irr::f32 deltaTime);
 
-    void GetHeightRaceTrackBelowCraft(irr::f32 &front, irr::f32 &back, irr::f32 &left, irr::f32 &right);
-    irr::f32 currHeightFront;
-    irr::f32 currHeightBack;
-    irr::f32 currHeightLeft;
-    irr::f32 currHeightRight;
-
     //set high reset values, so that the values have no
     //influence until first worldAware calculation has been done
     irr::f32 mCraftDistanceAvailRight = 100.0f;
@@ -265,16 +204,6 @@ public:
     irr::f32 dbgMinCeilingFound;
     irr::f32 dbgCameraVal;
     irr::f32 dbgCameraTargetVal;
-
-    bool mDbgCurrRecording = false;
-
-    std::vector<irr::f32> *dbgRecordFrontHeight = nullptr;
-    std::vector<irr::f32> *dbgRecordBackHeight = nullptr;
-    std::vector<irr::u8> *dbgRecordCurrJumping = nullptr;
-    std::vector<irr::u8> *dbgRecordCurrCollision = nullptr;
-
-    void StartDbgRecording();
-    void EndDbgRecording();
 
     void SetDebugFlag(irr::u8 debugFlag, bool enable);
     bool GetDebugFlag(irr::u8 debugFlag);
@@ -455,26 +384,8 @@ public:
     //crosses finish line the last time
     PLAYERSTATS *mFinalPlayerStats = nullptr;
 
-    irr::f32 terrainTiltCraftLeftRightDeg;
-    irr::f32 terrainTiltCraftFrontBackDeg;
-
-    //next checkpoints value we need to reach for
-    //correct race progress
-    irr::s32 nextCheckPointValue = 0;
-
-    //stores the last crossed checkpoints; we need this
-    //to differentiate first crossing of finish line at the start of the race
-    //with the end of following laps
-    irr::s32 lastCrossedCheckPointValue = 0;
-
-    void CrossedCheckPoint(irr::s32 valueCrossedCheckPoint, irr::s32 numberOfCheckpoints);
-
     //the parent race for this player
     Race *mRace = nullptr;
-
-    //debug height calculation variables
-    LineStruct debug;
-    std::list<LineStruct*> debug_player_heightcalc_lines;
 
     irr::f32 TargetHeight;
 
@@ -494,12 +405,9 @@ public:
     void SetCurrClosestWayPointLink(std::pair <WayPointLinkInfoStruct*, irr::core::vector3df> newClosestWayPointLink);
     //irr::core::vector3df DeriveCurrentDirectionVector(WayPointLinkInfoStruct *currentWayPointLine, irr::f32 progressCurrWayPoint);
 
-    irr::f32 GetHoverHeight();
     //void AlignPlayerModelToTerrainBelow();
 
     void SetupComputerPlayerForStart(irr::core::vector3df startPos);
-
-    void CraftHeightControl();
 
     void SetupForStart();
     void SetupToSkipStart();
@@ -566,18 +474,6 @@ public:
     //Returns true if there was a target found, False otherwise
     bool GetWeaponTarget(RayHitTriangleInfoStruct &shotTarget);
 
-    HMAPCOLLSTRUCT mHMapCollPntData;
-
-    void ExecuteHeightMapCollisionDetection(irr::f32 deltaTime);
-
-    void GetHeightMapCollisionSensorDebugInfo(wchar_t* outputText, int maxCharNr);
-    void GetHeightMapCollisionSensorDebugInfoEntryText(HMAPCOLLSENSOR *collSensor,
-                                                       wchar_t* outputText,
-                                                       int maxCharNr);
-
-    void StartRecordingHeightMapCollisionDbgData(HMAPCOLLSENSOR *whichCollSensor);
-    void StopRecordingHeightMapCollisionDbgData(char* outputDbgFileName);
-
     void SetGrabedByRecoveryVehicle(Recovery* whichRecoveryVehicle);
     void FreedFromRecoveryVehicleAgain();
 
@@ -632,6 +528,8 @@ public:
     void HideCraft();
     void UnhideCraft();
 
+    irr::f32 GetHoverHeight();
+
     bool mCraftVisible;
 
     bool DoWeNeedHidePlayerModel();
@@ -663,26 +561,12 @@ private:
     //the mesh for the Irrlicht SceneNode model
     irr::scene::IAnimatedMesh* PlayerMesh = nullptr;
 
-    //for recording HeightMap Collision data for debugging
-    std::vector<HMAPCOLLSENSOR*>* hMapCollDebugRecordingData = nullptr;
-
-    //if nullptr then no recording is taking place right now
-    HMAPCOLLSENSOR *hMapCollDebugWhichSensor = nullptr;
-
     //from which recovery vehicle are we currently grabbed?
     Recovery* mGrabedByThisRecoveryVehicle = nullptr;
 
     void SetNewState(irr::u32 newPlayerState);
 
     irr::u32 GetCurrentState();
-
-    void GetHeightMapCollisionSensorDebugStateName(HMAPCOLLSENSOR *collSensor, char **stateName);
-    void StoreHeightMapCollisionDbgRecordingDataForFrame();
-
-    void UpdateHMapCollisionPointData();
-
-    //returns true if a collision at this sensor was detected
-    bool HeightMapCollision(HMAPCOLLSENSOR &collSensor);
 
     void JumpControlPhysicsLoop(irr::f32 deltaTime);
 
@@ -696,12 +580,7 @@ private:
 
     void CheckForChargingStation(irr::f32 deltaTime);
     void CheckForTriggerCraftRegion();
-    void CalcPlayerCraftLeaningAngle();
-
-    //void HeightMapCollisionResolve(irr::core::plane3df cplane, irr::core::vector3df pnt1, irr::core::vector3df pnt2);
-    void UpdateHMapCollisionSensorPointData(HMAPCOLLSENSOR &sensor);
-
-    void CreateHMapCollisionPointData();
+   // void CalcPlayerCraftLeaningAngle();
 
     std::list<irr::f32> playerCamHeightList;
     irr::u8 playerCamHeightListElementNr = 0;
@@ -755,16 +634,6 @@ private:
 
     //definition of dirt texture elements vector
     std::vector<irr::s32> *dirtTexIdsVec = nullptr;
-
-    //is unequal to NULL if player craft is currently inside
-    //a craft trigger area defined in the level during
-    //the current player update
-    MapTileRegionStruct* mCurrentCraftTriggerRegion = nullptr;
-
-    //is unequal to NULL if player craft was inside
-    //a craft trigger area defined in the level during
-    //the last player update
-    MapTileRegionStruct* mLastCraftTriggerRegion = nullptr;
 
     void AddGlasBreak();
     void RepairGlasBreaks();

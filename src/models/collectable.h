@@ -81,8 +81,8 @@ public:
     //allows to update position if collectable
     //for example used by the collectablespawner
     //Important note: does NOT update the position of an
-    //underlying entityItem, only useful for type 2 collectable!
-    void UpdatePosition(irr::core::vector3df newPostion);
+    //underlying entityItem!
+    void UpdatePosition(irr::core::vector3df newPosition);
 
     void SetVisible(bool visible);
 

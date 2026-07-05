@@ -98,10 +98,10 @@ bool InfrastructureBase::ReadGameConfigXmlFile(IrrlichtDevice *device) {
         logging::Warning("Game configuration Xml file not found, recreate default configuration");
 
         //default configuration
-        //use everything "vanilla"
+        //use everything "vanilla", only the sky will not
         mGameConfig->enableVSync = true;
         mGameConfig->enableShadows = false;
-        mGameConfig->useUpgradedSky = false;
+        mGameConfig->useUpgradedSky = true;
         mGameConfig->enableDoubleResolution = false;
         mGameConfig->skipIntro = false;
 

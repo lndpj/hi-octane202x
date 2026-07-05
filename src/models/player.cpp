@@ -45,39 +45,6 @@ void Player::DamageGlas() {
     }
 }
 
-void Player::CrossedCheckPoint(irr::s32 valueCrossedCheckPoint, irr::s32 numberOfCheckpoints) {    
-    //if this player has already finished the race ignore checkpoints
-    if (mPlayerStats->mHasFinishedRace)
-        return;
-
-    //crossed checkpoint is the one we need to cross next?
-    if (this->nextCheckPointValue == valueCrossedCheckPoint) {
-        //did we cross the finish line the first time after start?
-        //if so we need to advance the race state
-        if ((lastCrossedCheckPointValue == 0) && (valueCrossedCheckPoint == 0)) {
-            this->mRace->PlayerCrossesFinishLineTheFirstTime();
-        }
-
-        //did the cross the finish line?
-        if ((lastCrossedCheckPointValue !=0) && (valueCrossedCheckPoint == 0)) {
-            //we finished a complete lap
-            this->FinishedLap();
-        }
-
-        //calculate next checkpoint target value
-        nextCheckPointValue++;
-
-        //if we exceed number of available waypoints
-        //the next expected waypoint is the finish line again (with value 0)
-        if (nextCheckPointValue > (numberOfCheckpoints - 1)) {
-            nextCheckPointValue = 0;
-        }
-
-        //remember value of last crossed way point
-        lastCrossedCheckPointValue = valueCrossedCheckPoint;
-    }
-}
-
 //delivers a random machine gun shoot location at the area of the
 //player craft model if the shoot does hit the player (shootDoesHit = true)
 //in case shoot does not hit, delivers a random target location around the player
@@ -228,16 +195,6 @@ Player::~Player() {
 
     delete dirtTexIdsVec;
     dirtTexIdsVec = nullptr;
-
-    //free the height map collision stuff
-    delete this->mHMapCollPntData.front;
-    delete this->mHMapCollPntData.frontLeft45deg;
-    delete this->mHMapCollPntData.frontRight45deg;
-    delete this->mHMapCollPntData.left;
-    delete this->mHMapCollPntData.right;
-    delete this->mHMapCollPntData.backLeft45deg;
-    delete this->mHMapCollPntData.backRight45deg;
-    delete this->mHMapCollPntData.back;
 
     CleanUpBrokenGlas();
     delete this->brokenGlasVec;
@@ -530,11 +487,6 @@ Player::Player(Race* race, std::string model, irr::core::vector3d<irr::f32> NewP
 
     //create a moving average calculation helper for craft position over 10 samples
     //mMovingAvgPlayerPositionCalc = new MovingAverageCalculator(MVG_AVG_TYPE_IRRCOREVECT3DF, 10);
-
-    dbgRecordFrontHeight = new std::vector<irr::f32>();
-    dbgRecordBackHeight = new std::vector<irr::f32>();
-    dbgRecordCurrJumping = new std::vector<irr::u8>();
-    dbgRecordCurrCollision = new std::vector<irr::u8>();
 }
 
 //helper function, I one time thought I would need it especially for Recovery craft, when dropping the
@@ -591,270 +543,11 @@ void Player::SetCurrClosestWayPointLink(std::pair <WayPointLinkInfoStruct*, irr:
     }
 }
 
-//calculate local coordinates for heightmap collision points of craft
-void Player::CreateHMapCollisionPointData() {
-    this->Player_node->updateAbsolutePosition();
-
-    /*irr::f32 diag = sqrt(this->mRace->mLevelTerrain->segmentSize * this->mRace->mLevelTerrain->segmentSize
-                         + this->mRace->mLevelTerrain->segmentSize * this->mRace->mLevelTerrain->segmentSize);*/
-
-    irr::f32 diag = this->mRace->mLevelTerrain->segmentSize * 0.7f;
-
-    //get the size of the craft 3D model bounding box
-    irr::core::vector3df hlpVec = Player_node->getTransformedBoundingBox().getExtent();
-
-    //straight forwards direction
-    this->mHMapCollPntData.front = new HMAPCOLLSENSOR();
-    mHMapCollPntData.front->localPnt1.set(0.0f, 0.0f, -0.5f * hlpVec.Z);
-    mHMapCollPntData.front->localPnt2.set(0.0f, 0.0f, -0.5f * hlpVec.Z - this->mRace->mLevelTerrain->segmentSize);
-    strcpy(mHMapCollPntData.front->sensorName, "Front");
-
-    //forward 45deg to the left side direction
-    this->mHMapCollPntData.frontLeft45deg = new HMAPCOLLSENSOR();
-    this->mHMapCollPntData.frontLeft45deg->localPnt1.set(0.5f * hlpVec.X, 0.0f,-0.5f * hlpVec.Z);
-    this->mHMapCollPntData.frontLeft45deg->localPnt2.set(0.5f * hlpVec.X + diag, 0.0f, -0.5f * hlpVec.Z - diag);
-    strcpy(mHMapCollPntData.frontLeft45deg->sensorName, "FrontL");
-
-    //forward 45deg to the right side direction
-    this->mHMapCollPntData.frontRight45deg = new HMAPCOLLSENSOR();
-    this->mHMapCollPntData.frontRight45deg->localPnt1.set(-0.5f * hlpVec.X, 0.0f, -0.5f * hlpVec.Z);
-    this->mHMapCollPntData.frontRight45deg->localPnt2.set(-0.5f * hlpVec.X - diag, 0.0f, -0.5f * hlpVec.Z - diag);
-    strcpy(mHMapCollPntData.frontRight45deg->sensorName, "FrontR");
-
-    //left side of the player craft
-    this->mHMapCollPntData.left = new HMAPCOLLSENSOR();
-    this->mHMapCollPntData.left->localPnt1.set(0.5f * hlpVec.X, 0.0f, 0.0f);
-    this->mHMapCollPntData.left->localPnt2.set(0.5f * hlpVec.X + this->mRace->mLevelTerrain->segmentSize, 0.0f, 0.0f);
-    strcpy(mHMapCollPntData.left->sensorName, "Left");
-
-    //right side of the player craft
-    this->mHMapCollPntData.right = new HMAPCOLLSENSOR();
-    this->mHMapCollPntData.right->localPnt1.set(-0.5f * hlpVec.X, 0.0f, 0.0f);
-    this->mHMapCollPntData.right->localPnt2.set(-0.5f * hlpVec.X - this->mRace->mLevelTerrain->segmentSize, 0.0f, 0.0f);
-    strcpy(mHMapCollPntData.right->sensorName, "Right");
-
-    //back 45deg to the left side direction
-    this->mHMapCollPntData.backLeft45deg = new HMAPCOLLSENSOR();
-    this->mHMapCollPntData.backLeft45deg->localPnt1.set(0.5f * hlpVec.X, 0.0f, 0.5f * hlpVec.Z);
-    this->mHMapCollPntData.backLeft45deg->localPnt2.set(0.5f * hlpVec.X + diag, 0.0f, 0.5f * hlpVec.Z + diag);
-    strcpy(mHMapCollPntData.backLeft45deg->sensorName, "BackL");
-
-    //back 45deg to the right side direction
-    this->mHMapCollPntData.backRight45deg = new HMAPCOLLSENSOR();
-    this->mHMapCollPntData.backRight45deg->localPnt1.set(-0.5f * hlpVec.X, 0.0f, 0.5f * hlpVec.Z);
-    this->mHMapCollPntData.backRight45deg->localPnt2.set(-0.5f * hlpVec.X - diag, 0.0f, 0.5f * hlpVec.Z + diag);
-    strcpy(mHMapCollPntData.backRight45deg->sensorName, "BackR");
-
-    //straight backwards direction
-    this->mHMapCollPntData.back = new HMAPCOLLSENSOR();
-    mHMapCollPntData.back->localPnt1.set(0.0f, 0.0f, 0.5f * hlpVec.Z);
-    mHMapCollPntData.back->localPnt2.set(0.0f, 0.0f, 0.5f * hlpVec.Z + this->mRace->mLevelTerrain->segmentSize);
-    strcpy(mHMapCollPntData.back->sensorName, "Back");
-}
-
 void Player::ExecuteCpPlayerLogic(irr::f32 deltaTime) {
     if (mHumanPlayer)
         return;
 
     mCpuPlayer->RunPlayerLogic(deltaTime);
-}
-
-void Player::GetHeightMapCollisionSensorDebugInfo(wchar_t* outputText, int maxCharNr) {
-
-    int remChars = maxCharNr;
-
-    wcscpy(outputText, L"");
-
-    wchar_t entry[200];
-    size_t currLen;
-
-    //front
-    if (mHMapCollPntData.front->currState != STATE_HMAP_COLL_IDLE) {
-        GetHeightMapCollisionSensorDebugInfoEntryText(mHMapCollPntData.front,
-                                                  entry, 190);
-
-        currLen = wcslen(entry);
-        remChars -= (unsigned int)(currLen);
-
-        if (remChars > 0) {
-         wcscat(outputText, entry);
-        } else
-            return;
-    }
-
-    //front left
-     if (mHMapCollPntData.frontLeft45deg->currState != STATE_HMAP_COLL_IDLE) {
-        GetHeightMapCollisionSensorDebugInfoEntryText(mHMapCollPntData.frontLeft45deg,
-                                                      entry, 190);
-
-        currLen = wcslen(entry);
-        remChars -= (unsigned int)currLen;
-
-        if (remChars > 0) {
-         wcscat(outputText, entry);
-        } else
-            return;
-     }
-
-    //front right
-    if (mHMapCollPntData.frontRight45deg->currState != STATE_HMAP_COLL_IDLE) {
-        GetHeightMapCollisionSensorDebugInfoEntryText(mHMapCollPntData.frontRight45deg,
-                                                      entry, 190);
-
-        currLen = wcslen(entry);
-        remChars -= (unsigned int)currLen;
-
-        if (remChars > 0) {
-         wcscat(outputText, entry);
-        } else
-            return;
-    }
-
-    //Left
-    if (mHMapCollPntData.left->currState != STATE_HMAP_COLL_IDLE) {
-        GetHeightMapCollisionSensorDebugInfoEntryText(mHMapCollPntData.left,
-                                                      entry, 190);
-
-        currLen = wcslen(entry);
-        remChars -= (unsigned int)currLen;
-
-        if (remChars > 0) {
-         wcscat(outputText, entry);
-         } else
-            return;
-    }
-
-    //Right
-    if (mHMapCollPntData.right->currState != STATE_HMAP_COLL_IDLE) {
-        GetHeightMapCollisionSensorDebugInfoEntryText(mHMapCollPntData.right,
-                                                      entry, 190);
-
-        currLen = wcslen(entry);
-        remChars -= (unsigned int)currLen;
-
-        if (remChars > 0) {
-         wcscat(outputText, entry);
-        } else
-            return;
-    }
-
-    //Back left
-    if (mHMapCollPntData.backLeft45deg->currState != STATE_HMAP_COLL_IDLE) {
-        GetHeightMapCollisionSensorDebugInfoEntryText(mHMapCollPntData.backLeft45deg,
-                                                    entry, 190);
-
-        currLen = wcslen(entry);
-        remChars -= (unsigned int)currLen;
-
-        if (remChars > 0) {
-          wcscat(outputText, entry);
-        } else
-         return;
-    }
-
-    //Back right
-   if (mHMapCollPntData.backRight45deg->currState != STATE_HMAP_COLL_IDLE) {
-        GetHeightMapCollisionSensorDebugInfoEntryText(mHMapCollPntData.backRight45deg,
-                                                      entry, 190);
-
-        currLen = wcslen(entry);
-        remChars -= (unsigned int)currLen;
-
-        if (remChars > 0) {
-         wcscat(outputText, entry);
-        } else
-            return;
-    }
-
-    //back
-    if (mHMapCollPntData.back->currState != STATE_HMAP_COLL_IDLE) {
-        GetHeightMapCollisionSensorDebugInfoEntryText(mHMapCollPntData.back,
-                                                      entry, 190);
-
-        currLen = wcslen(entry);
-        remChars -= (unsigned int)currLen;
-
-        if (remChars > 0) {
-         wcscat(outputText, entry);
-        } else
-            return;
-    }
-}
-
-void Player::GetHeightMapCollisionSensorDebugStateName(HMAPCOLLSENSOR *collSensor, char **stateName) {
-    *stateName = new char[20];
-
-    strcpy(*stateName, "");
-
-    if (collSensor != nullptr) {
-        if (collSensor->currState == STATE_HMAP_COLL_IDLE) {
-            strcpy(*stateName, "IDLE");
-        } else if (collSensor->currState == STATE_HMAP_COLL_WATCH) {
-            strcpy(*stateName, "WATCH");
-        } else if (collSensor->currState == STATE_HMAP_COLL_RESOLVE) {
-            strcpy(*stateName, "RESOLVE");
-        } else if (collSensor->currState == STATE_HMAP_COLL_FAILED) {
-            strcpy(*stateName, "FAILED");
-       } else if (collSensor->currState == STATE_HMAP_COLL_NOINTERSECTPNT) {
-            strcpy(*stateName, "NOINTERSECTPNT");
-        }
-    }
-}
-
-void Player::GetHeightMapCollisionSensorDebugInfoEntryText(
-    HMAPCOLLSENSOR *collSensor, wchar_t* outputText, int maxCharNr) {
-
-    wcscpy(outputText, L"");
-
-    if (collSensor != nullptr) {
-        char *stateName;
-
-        //only create debug text if state is not idle
-        GetHeightMapCollisionSensorDebugStateName(collSensor, &stateName);
-
-        //22.03.2025: It seems Visual Studio automatically changes swprintf to instead using
-        //safer function swprintf_s which would be fine for me
-        //The problem is this function checks for validity of format strings, and simply %s as under GCC
-        //is not valid when specifiying a normal non wide C-string, and as a result text output does not work (only
-        //garbage is shown); To fix this we need to use special format string "%hs" under windows;
-        //But because I am not sure if GCC will accept this under Linux, I will keep the original code under GCC
-        //here
-#ifdef _MSC_VER 
-        swprintf(outputText, maxCharNr, L"%hs: %hs %lf %lf %u\n",
-                     collSensor->sensorName,
-                     stateName,
-                     collSensor->stepness,
-                     collSensor->distance,
-                     collSensor->collCnt);
-#endif
-#ifdef __GNUC__
-        swprintf(outputText, maxCharNr, L"%s: %s %lf %lf %u\n",
-            collSensor->sensorName,
-            stateName,
-            collSensor->stepness,
-            collSensor->distance,
-            collSensor->collCnt);
-#endif
-
-          delete[] stateName;
-        }
-}
-
-void Player::UpdateHMapCollisionSensorPointData(HMAPCOLLSENSOR &sensor) {
-    sensor.wCoordPnt1 = this->phobj->ConvertToWorldCoord(sensor.localPnt1);
-    sensor.wCoordPnt2 = this->phobj->ConvertToWorldCoord(sensor.localPnt2);
-}
-
-//calculate world coordinates from local coordinates for heightmap collision points of craft
-void Player::UpdateHMapCollisionPointData() {
-  UpdateHMapCollisionSensorPointData(*this->mHMapCollPntData.front);
-  UpdateHMapCollisionSensorPointData(*this->mHMapCollPntData.frontLeft45deg);
-  UpdateHMapCollisionSensorPointData(*this->mHMapCollPntData.frontRight45deg);
-  UpdateHMapCollisionSensorPointData(*this->mHMapCollPntData.left);
-  UpdateHMapCollisionSensorPointData(*this->mHMapCollPntData.right);
-  UpdateHMapCollisionSensorPointData(*this->mHMapCollPntData.back);
-  UpdateHMapCollisionSensorPointData(*this->mHMapCollPntData.backLeft45deg);
-  UpdateHMapCollisionSensorPointData(*this->mHMapCollPntData.backRight45deg);
 }
 
 //NewPosition = New position of player craft center of gravity (world coordinates)
@@ -933,12 +626,10 @@ void Player::CalcCraftLocalFeatureCoordinates(irr::core::vector3d<irr::f32> NewP
     LocalCraftDustPnt.Y = -hlpVec.Y * 0.3f;
     LocalCraftDustPnt.Z = 0.0f;
 
-    CreateHMapCollisionPointData();
-
-    LocalCraftFrontPnt = mHMapCollPntData.front->localPnt1;
-    LocalCraftBackPnt = mHMapCollPntData.back->localPnt1;
-    LocalCraftLeftPnt = mHMapCollPntData.left->localPnt1;
-    LocalCraftRightPnt = mHMapCollPntData.right->localPnt1;
+    // LocalCraftFrontPnt = mHMapCollPntData.front->localPnt1;
+    // LocalCraftBackPnt = mHMapCollPntData.back->localPnt1;
+    // LocalCraftLeftPnt = mHMapCollPntData.left->localPnt1;
+    // LocalCraftRightPnt = mHMapCollPntData.right->localPnt1;
 }
 
 void Player::DebugCraftLocalFeatureCoordinates() {
@@ -1196,387 +887,6 @@ void Player::LogMessage(char *msgTxt) {
     delete[] combinedMsg;
 }
 
-void Player::StartDbgRecording() {
-    if (mDbgCurrRecording)
-        return;
-
-    dbgRecordBackHeight->clear();
-    dbgRecordFrontHeight->clear();
-    dbgRecordCurrJumping->clear();
-    dbgRecordCurrCollision->clear();
-
-    mDbgCurrRecording = true;
-}
-
-void Player::EndDbgRecording() {
-    if (!mDbgCurrRecording)
-        return;
-
-    //write output file
-
-    //write the debugging output file
-    FILE* outputFile;
-
-    outputFile = fopen((char*)("collexport.txt"), "w");
-
-    size_t maxIdx = dbgRecordFrontHeight->size();
-
-    for (size_t currIdx = 0; currIdx < maxIdx; currIdx++) {
-
-        fprintf(outputFile, "%lf;%lf;%u;%u\n",
-                dbgRecordFrontHeight->at(currIdx),
-                dbgRecordBackHeight->at(currIdx),
-                dbgRecordCurrJumping->at(currIdx),
-                dbgRecordCurrCollision->at(currIdx)
-               );
-
-    }
-
-    fclose(outputFile);
-}
-
-void Player::ExecuteHeightMapCollisionDetection(irr::f32 deltaTime) {
-     UpdateHMapCollisionPointData();
-
-     //as a preparation to collision detection via heightmap
-     //we need to do craft jump detection, so that we know
-     //when we need to disable the detection
-     JumpControlPhysicsLoop(deltaTime);
-
-     //if player does jump currently do not execute heightmap
-     //collision detection
-     if (mCurrJumping) {
-
-         if (mDbgCurrRecording) {
-                dbgRecordCurrCollision->push_back(0);
-         }
-         return;
-     }
-
-     //Execute the terrain heightmap tile collision detection
-     //only if we do this morphing will also have an effect
-     //on the craft movements
-     irr::u8 collval = 0;
-
-     if (HeightMapCollision(*mHMapCollPntData.front)) {
-         collval = 1;
-     }
-
-     if (HeightMapCollision(*mHMapCollPntData.frontLeft45deg)) {
-         collval = 2;
-     }
-
-     if (HeightMapCollision(*mHMapCollPntData.frontRight45deg)) {
-         collval = 3;
-     }
-
-     if (HeightMapCollision(*mHMapCollPntData.left)) {
-         collval = 4;
-     }
-
-     if (HeightMapCollision(*mHMapCollPntData.right)) {
-         collval = 5;
-     }
-
-     if (HeightMapCollision(*mHMapCollPntData.back)) {
-         collval = 6;
-     }
-
-     if (HeightMapCollision(*mHMapCollPntData.backLeft45deg)) {
-         collval = 7;
-     }
-
-     if (HeightMapCollision(*mHMapCollPntData.backRight45deg)) {
-         collval = 8;
-     }
-
-     if (mDbgCurrRecording) {
-         dbgRecordCurrCollision->push_back(collval);
-     }
-
-     //store heightmap collision detection debugging results for frame
-     //StoreHeightMapCollisionDbgRecordingDataForFrame();
-}
-
-//in the original game the ship seems to collide with the
-//marked Wallsegments which are contained within the enties
-//of the level data. I do the same, as I create a collision mesh which
-//contains an auto generated vertical wall at each wall segment location.
-//Additional I create an collision mesh where the outline of (almost) every
-//block in the game is also added. Only exception are the blocks above an tunnel,
-//because otherwise the player often got stuck there in the ceiling.
-//This collision mesh collisions are handled in Utils/physics.
-//The problem is if I only apply this kind of collisions with the blocks and the
-//wallsegment lines the player can fly through walls of Morphing-Regions, as the are
-//not there at all. Also for example in Level 3 the player can fly upwards the walls
-//of the massive hills around the starting point, but in the original game the
-//player can not. Therefore the game seems to do additional collision checking based on the
-//height of surrounding tiles. I need to do the same, which I will try to do here.
-//I know it seems kind of messy to have different kind of collisions in the same
-//game, but that is all I can do now
-//returns true if a collision at this sensor was detected
-bool Player::HeightMapCollision(HMAPCOLLSENSOR &collSensor) {
-
-    irr::f32 dist;
-    irr::core::vector3df collPlanePos1Coord;
-    irr::core::vector3df collPlanePos2Coord;
-    irr::core::vector3df collResolutionDirVector;
-    irr::core::vector3df outIntersect;
-    irr::core::vector3df delta;
-    irr::core::vector3df deltaGround;
-    irr::f32 step;
-    irr::core::plane3df cplane;
-    bool collDet = false;
-
-    collSensor.stepness = 0.0f;
-    collSensor.distance = 0.0f;
-    collSensor.planePnt1.set(0.0f, 0.0f, 0.0f);
-    collSensor.planePnt2.set(0.0f, 0.0f, 0.0f);
-    collSensor.intersectionPnt.set(0.0f, 0.0f, 0.0f);
-
-    bool diffTiles = false;
-    bool noIntersectionPnt = false;
-
-    collSensor.currState = STATE_HMAP_COLL_IDLE;
-
-    collSensor.wCoordPnt1.Y =
-            mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate
-            (collSensor.wCoordPnt1.X,
-             collSensor.wCoordPnt1.Z,
-             collSensor.cellPnt1);
-
-    collSensor.wCoordPnt2.Y =
-            mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate
-            (collSensor.wCoordPnt2.X,
-             collSensor.wCoordPnt2.Z,
-             collSensor.cellPnt2);
-
-    if ((collSensor.cellPnt1.X != collSensor.cellPnt2.X) ||
-        (collSensor.cellPnt1.Y != collSensor.cellPnt2.Y)) {
-            diffTiles = true;
-    }
-
-    if (diffTiles) {
-        //the two points are in different tiles, that means there is a intersection point at the edge
-        //between the two tiles
-        //there is potential for a collision, get "collision" plane between both cells
-        this->mRace->mLevelTerrain->GetCollisionPlaneBetweenNeighboringTiles(collSensor.cellPnt1.X, collSensor.cellPnt1.Y,
-                                                                             collSensor.cellPnt2.X, collSensor.cellPnt2.Y,
-                               collPlanePos1Coord, collPlanePos2Coord,
-                               collResolutionDirVector);
-
-        collSensor.planePnt1 = collPlanePos1Coord;
-        collSensor.planePnt2 = collPlanePos2Coord;
-
-        //create a plane for further collision calculations
-        cplane.setPlane(collPlanePos1Coord, collPlanePos2Coord, collPlanePos1Coord + irr::core::vector3df(0.0f, 1.0f, 0.0f));
-
-        if (cplane.getIntersectionWithLimitedLine(collSensor.wCoordPnt1, collSensor.wCoordPnt2, outIntersect))
-        {
-            irr::core::vector2di outCell;
-            //we need to correct Y coordinate of intersection point, so that it is at the height of the tile below
-            outIntersect.Y =
-                    this->mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate(outIntersect.X, outIntersect.Z, outCell);
-
-            collSensor.intersectionPnt = outIntersect;
-
-            //steepness is calculated from pnt2 back to intersection point
-            delta = (collSensor.wCoordPnt2 - outIntersect);
-
-            deltaGround = delta;
-            deltaGround.Y = 0.0f;
-
-            //calculate steepness
-            step = delta.Y / (deltaGround.getLength());
-            collSensor.stepness = step;
-
-        } else {
-            //we did not find an intersection point
-            noIntersectionPnt = true;
-
-            collSensor.currState = STATE_HMAP_COLL_NOINTERSECTPNT;
-        }
-    } else {
-        //both points are in the same tile
-        //calculate steepness directly between pnt2 and pnt1
-        delta = (collSensor.wCoordPnt2 - collSensor.wCoordPnt1);
-
-        deltaGround = delta;
-        deltaGround.Y = 0.0f;
-
-        //calculate steepness
-        step = delta.Y / (deltaGround.getLength());
-        collSensor.stepness = step;
-    }
-
-    irr::f32 SteepThresh = DEF_LEVELTERRAIN_HEIGHTMAP_COLLISION_THRES;
-
-    collSensor.deactivateHeightControl = false;
-
-    //if steepness is higher then threshold we need to check for collision
-    if (step > SteepThresh) {
-        collSensor.deactivateHeightControl = true;
-        collSensor.currState = STATE_HMAP_COLL_WATCH;
-
-        if (diffTiles && !noIntersectionPnt) {
-            //if pnt2 and pnt1 are again in different tiles, the remaining distance before
-            //crash is from intersection point to pnt1
-            irr::core::vector3df distVec = (outIntersect - collSensor.wCoordPnt1);
-
-            dist = distVec.getLength();
-            collSensor.distance = dist;
-
-            if ((dist < 0.1f) && (dist > 0.0f)) {
-                //we have a collision!
-                //HeightMapCollisionResolve(cplane, collDataStruct->wCoordFront1, collDataStruct->wCoordFront2);
-
-                //a collision should occur, play collision sound
-                if (!this->mCurrJumping) {
-                    collDet = true;
-                    this->Collided();
-                }
-
-                collSensor.currState = STATE_HMAP_COLL_RESOLVE;
-
-                irr::core::vector3df collResolutionDirVec = distVec.normalize();
-
-                //immediately move the object so the collision is resolved
-                //add a force that pushes the object away from the terrain tile we collided with
-                this->phobj->physicState.position -= collResolutionDirVec * (0.1f - dist);
-
-                this->phobj->AddWorldCoordForce(this->phobj->physicState.position,
-                        this->phobj->physicState.position - collResolutionDirVec * 10.0f, PHYSIC_DBG_FORCETYPE_COLLISIONRESOLUTION);
-
-                collSensor.collCnt++;
-            }
-
-        } else if (!diffTiles) {
-            //we most likely went to far over the cplane
-            if (cplane.getIntersectionWithLimitedLine(this->phobj->physicState.position, collSensor.wCoordPnt1, outIntersect)) {
-                irr::core::vector2di outCell;
-                //we need to correct Y coordinate of intersection point, so that it is at the height of the tile below
-                outIntersect.Y =
-                        this->mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate(outIntersect.X, outIntersect.Z, outCell);
-
-                collSensor.intersectionPnt = outIntersect;
-
-                //distance we went over the collision target is between
-                //the point closes to the craft and the new intersection point
-                irr::core::vector3df distVec = (outIntersect - collSensor.wCoordPnt1);
-
-                dist = distVec.getLength();
-                collSensor.distance = dist;
-
-                //a collision should occur, play collision sound
-                if (!this->mCurrJumping) {
-                    collDet = true;
-                    this->Collided();
-                }
-
-                collSensor.currState = STATE_HMAP_COLL_RESOLVE;
-
-                irr::core::vector3df collResolutionDirVec = distVec.normalize();
-
-                //immediately move the object so the collision is resolved
-                //add a force that pushes the object away from the terrain tile we collided with
-                this->phobj->physicState.position += collResolutionDirVec * dist;
-
-                this->phobj->AddWorldCoordForce(this->phobj->physicState.position,
-                        this->phobj->physicState.position + collResolutionDirVec * 10.0f, PHYSIC_DBG_FORCETYPE_COLLISIONRESOLUTION);
-
-                 collSensor.collCnt++;
-
-            } else {
-                //we did not find an intersection point
-                noIntersectionPnt = true;
-
-                collSensor.currState = STATE_HMAP_COLL_NOINTERSECTPNT;
-            }
-
-        }
-    }
-
-    return (collDet);
-}
-
-void Player::StoreHeightMapCollisionDbgRecordingDataForFrame() {
-    //if currently no recording is done just return
-    if (this->hMapCollDebugWhichSensor == nullptr)
-        return;
-
-    if (this->hMapCollDebugRecordingData == nullptr)
-        return;
-
-    HMAPCOLLSENSOR* newDataPoint = new HMAPCOLLSENSOR();
-    //copy the data
-    *newDataPoint = *hMapCollDebugWhichSensor;
-
-    //store recording data from the current frame in the recording vector
-    this->hMapCollDebugRecordingData->push_back(newDataPoint);
-}
-
-void Player::StartRecordingHeightMapCollisionDbgData(HMAPCOLLSENSOR *whichCollSensor) {
-    //if we record already just return
-    if (this->hMapCollDebugWhichSensor != nullptr)
-        return;
-
-    //if no valid sensor is specified also return
-    if (whichCollSensor == nullptr)
-        return;
-
-    //create new recording data vector
-    this->hMapCollDebugRecordingData = new std::vector<HMAPCOLLSENSOR*>();
-
-    hMapCollDebugWhichSensor = whichCollSensor;
-}
-
-void Player::StopRecordingHeightMapCollisionDbgData(char* outputDbgFileName) {
-    //if we do not record right now just return
-    if (this->hMapCollDebugWhichSensor == nullptr)
-        return;
-
-    std::vector<HMAPCOLLSENSOR*>::iterator it;
-
-    //write the debugging output file
-    FILE* outputFile;
-
-    outputFile = fopen(outputDbgFileName, "w");
-
-    char *stateName;
-
-    for (it = this->hMapCollDebugRecordingData->begin(); it != this->hMapCollDebugRecordingData->end(); ++it) {
-        GetHeightMapCollisionSensorDebugStateName((*it), &stateName);
-
-        fprintf(outputFile, "%s;%lf;%lf;%u\n",
-                stateName,
-                (*it)->stepness,
-                (*it)->distance,
-                (*it)->collCnt
-               );
-
-        delete[] stateName;
-    }
-
-    fclose(outputFile);
-
-    HMAPCOLLSENSOR* pntr;
-
-    //delete recorded data again
-    for (it = this->hMapCollDebugRecordingData->begin(); it != this->hMapCollDebugRecordingData->end(); ) {
-        pntr = (*it);
-
-        it = this->hMapCollDebugRecordingData->erase(it);
-
-        //delete object itself as well
-        delete pntr;
-    }
-
-    delete this->hMapCollDebugRecordingData;
-    this->hMapCollDebugRecordingData = nullptr;
-
-    hMapCollDebugWhichSensor = nullptr;
-}
-
 void Player::Collided() {
     if (mHumanPlayer) {
            if (CollisionSound == nullptr) {
@@ -1586,25 +896,26 @@ void Player::Collided() {
 }
 
 void Player::AfterPhysicsUpdate() {
-    if (CollisionSound != nullptr) {
-        if (CollisionSound->getStatus() == sf::SoundSource::Status::Stopped) {
-            CollisionSound = nullptr;
-        }
-    }
+    //TODO: Commented out, because does not compile anymore
+    // if (CollisionSound != nullptr) {
+    //     if (CollisionSound->getStatus() == sf::SoundSource::Status::Stopped) {
+    //         CollisionSound = nullptr;
+    //     }
+    // }
 
-    if (this->phobj->CollidedOtherObjectLastTime) {
-        Collided();
-    }
+    // if (this->phobj->CollidedOtherObjectLastTime) {
+    //     Collided();
+    // }
 
-    //does another player have currently a missile
-    //lock on us? if so play the warning sound
-    if (this->mRace->currPlayerFollow == this) {
-        if (mOtherPlayerHasMissleLockAtMe) {
-            StartPlayingLockOnSound();
-        } else {
-            StopPlayingLockOnSound();
-        }
-    }
+    // //does another player have currently a missile
+    // //lock on us? if so play the warning sound
+    // if (this->mRace->currPlayerFollow == this) {
+    //     if (mOtherPlayerHasMissleLockAtMe) {
+    //         StartPlayingLockOnSound();
+    //     } else {
+    //         StopPlayingLockOnSound();
+    //     }
+    // }
 }
 
 void Player::MaxTurboReached() {
@@ -1785,45 +1096,45 @@ void Player::IsSpaceDown(bool down, irr::f32 deltaTime) {
 //to give the player the impression that the drawn sky is realistic
 //for this we need to calculate the current angle of the craft relative to the
 //Y-axis
-void Player::CalcPlayerCraftLeaningAngle() {
-    this->Player_node->updateAbsolutePosition();
-    irr::core::vector3d<irr::f32> craftUpwardsVec =
-            (WorldCoordCraftAboveCOGStabilizationPoint - this->Player_node->getAbsolutePosition()).normalize();
+// void Player::CalcPlayerCraftLeaningAngle() {
+//     this->Player_node->updateAbsolutePosition();
+//     irr::core::vector3d<irr::f32> craftUpwardsVec =
+//             (WorldCoordCraftAboveCOGStabilizationPoint - this->Player_node->getAbsolutePosition()).normalize();
 
-    irr::core::vector3d<irr::f32> distVec = (craftUpwardsVec - *mRace->mGame->yAxisDirVector);
-    irr::f32 distVal = distVec.dotProduct(craftSidewaysToRightVec);
+//     irr::core::vector3d<irr::f32> distVec = (craftUpwardsVec - *mRace->mGame->yAxisDirVector);
+//     irr::f32 distVal = distVec.dotProduct(craftSidewaysToRightVec);
 
-    //calculate angle between upVec and craftUpwardsVec
-    //irr::f32 angleRad = acosf(craftUpwardsVec.dotProduct(upVec));
+//     //calculate angle between upVec and craftUpwardsVec
+//     //irr::f32 angleRad = acosf(craftUpwardsVec.dotProduct(upVec));
 
-    irr::f32 angleRad = acosf(distVal);
+//     irr::f32 angleRad = acosf(distVal);
 
-    this->currPlayerCraftLeaningAngleDeg = (angleRad / irr::core::PI) * 180.0f - 90.0f + terrainTiltCraftLeftRightDeg;
+//     this->currPlayerCraftLeaningAngleDeg = (angleRad / irr::core::PI) * 180.0f - 90.0f + terrainTiltCraftLeftRightDeg;
 
-    irr::core::vector3df leaningDirVec = craftUpwardsVec - *mRace->mGame->yAxisDirVector;
-    irr::core::vector3df CraftRightDirVec = (WorldCoordCraftRightPnt - this->Player_node->getAbsolutePosition()).normalize();
-    irr::f32 dotProductRightDir = leaningDirVec.dotProduct(CraftRightDirVec);
+//     irr::core::vector3df leaningDirVec = craftUpwardsVec - *mRace->mGame->yAxisDirVector;
+//     irr::core::vector3df CraftRightDirVec = (WorldCoordCraftRightPnt - this->Player_node->getAbsolutePosition()).normalize();
+//     irr::f32 dotProductRightDir = leaningDirVec.dotProduct(CraftRightDirVec);
 
-    if (dotProductRightDir > 0.1f) {
-        currPlayerCraftLeaningOrientation = CRAFT_LEANINGRIGHT;
-    } else if (dotProductRightDir < 0.1f) {
-        currPlayerCraftLeaningOrientation = CRAFT_LEANINGLEFT;
-    } else {
-        //no leaning
-        currPlayerCraftLeaningOrientation = CRAFT_NOLEANING;
-    }
+//     if (dotProductRightDir > 0.1f) {
+//         currPlayerCraftLeaningOrientation = CRAFT_LEANINGRIGHT;
+//     } else if (dotProductRightDir < 0.1f) {
+//         currPlayerCraftLeaningOrientation = CRAFT_LEANINGLEFT;
+//     } else {
+//         //no leaning
+//         currPlayerCraftLeaningOrientation = CRAFT_NOLEANING;
+//     }
 
-    //derive current craft forwards direction angle referenced to x-Axis
-    //we need this number for computer player control
-    //Important: Here do not correct angle calculation result outside of valid range!
-   // mCurrentCraftOrientationAngle = mRace->GetAbsOrientationAngleFromDirectionVec(craftForwardDirVec, false);
+//     //derive current craft forwards direction angle referenced to x-Axis
+//     //we need this number for computer player control
+//     //Important: Here do not correct angle calculation result outside of valid range!
+//    // mCurrentCraftOrientationAngle = mRace->GetAbsOrientationAngleFromDirectionVec(craftForwardDirVec, false);
 
-    distVal = distVec.dotProduct(craftForwardDirVec);
+//     distVal = distVec.dotProduct(craftForwardDirVec);
 
-    angleRad = acosf(distVal);
+//     angleRad = acosf(distVal);
 
-    this->currPlayerCraftForwardLeaningAngleDeg = (angleRad / irr::core::PI) * 180.0f - 90.0f + terrainTiltCraftFrontBackDeg;
-}
+//     this->currPlayerCraftForwardLeaningAngleDeg = (angleRad / irr::core::PI) * 180.0f - 90.0f + terrainTiltCraftFrontBackDeg;
+// }
 
 //returns false if waypoint we want project player on is not sideways of player
 //returns true otherwise
@@ -2056,6 +1367,10 @@ void Player::UpdateInternalCoordVariables() {
     mCurrPosCellY = (int)(this->phobj->physicState.position.Z / mRace->mLevelTerrain->segmentSize);
 }
 
+irr::f32 Player::GetHoverHeight() {
+    return HOVER_HEIGHT;
+}
+
 void Player::Update(irr::f32 frameDeltaTime) {
     if ((!mPlayerStats->mHasFinishedRace)
         && (mPlayerStats->mPlayerCurrentState != STATE_PLAYER_BEFORESTART)
@@ -2126,7 +1441,7 @@ void Player::Update(irr::f32 frameDeltaTime) {
     //model is not active and otherwise we get weird behavior
     //when craft is freed again
     if (this->mGrabedByThisRecoveryVehicle == nullptr) {
-        CraftHeightControl();
+        //CraftHeightControl();
     }
 
     /************ Update player camera stuff ***************/
@@ -2150,7 +1465,7 @@ void Player::Update(irr::f32 frameDeltaTime) {
     //next line is only for debugging
     //TestCpForceControlLogicWithHumanPlayer();
 
-    CalcPlayerCraftLeaningAngle();
+    //CalcPlayerCraftLeaningAngle();
 
     nextLeaningAngleUpdate -= frameDeltaTime;
 
@@ -2176,14 +1491,15 @@ void Player::Update(irr::f32 frameDeltaTime) {
     //if this players camera is currently selected to be followed
     //set engine sound to be non spatial, otherwise we get a weird directional
     //sound effect when the player rotates around his axis
-    if (this->mRace->currPlayerFollow == this) {
-        this->mRace->mSoundEngine->SetPlayerSpeed(this, this->mPlayerStats->speed, this->mPlayerStats->speedMax);
-    } else {
-        //is not the main player (player that we follow right now)
-        //use spatial engine sound
-        this->mRace->mSoundEngine->SetPlayerSpeed(this, this->mPlayerStats->speed, this->mPlayerStats->speedMax,
-                                                         this->phobj->physicState.position);
-    }
+    //TODO: Commented out, does not compile anymore
+    // if (this->mRace->currPlayerFollow == this) {
+    //     this->mRace->mSoundEngine->SetPlayerSpeed(this, this->mPlayerStats->speed, this->mPlayerStats->speedMax);
+    // } else {
+    //     //is not the main player (player that we follow right now)
+    //     //use spatial engine sound
+    //     this->mRace->mSoundEngine->SetPlayerSpeed(this, this->mPlayerStats->speed, this->mPlayerStats->speedMax,
+    //                                                      this->phobj->physicState.position);
+    // }
 
     mLastBoosterActive = mBoosterActive;
     mLastMaxTurboActive = mMaxTurboActive;
@@ -2215,309 +1531,13 @@ void Player::Update(irr::f32 frameDeltaTime) {
     mMissileLauncher->Update(frameDeltaTime);
 
     //check if player entered a craft trigger region
-    CheckForTriggerCraftRegion();
+    //CheckForTriggerCraftRegion();
 
     //do we have currently a missile lock at another player
     //if so set flag for warning sound in the other player
     if ((mTargetPlayer != nullptr) && (mTargetMissleLock)) {
         mTargetPlayer->mOtherPlayerHasMissleLockAtMe = true;
     }
-}
-
-void Player::JumpControlPhysicsLoop(irr::f32 deltaTime) {
-    this->Player_node->updateAbsolutePosition();
-    irr::core::matrix4 matr = this->Player_node->getAbsoluteTransformation();
-
-    irr::core::vector3df frontCraftPoint(LocalCraftFrontPnt);
-    matr.transformVect(frontCraftPoint);
-
-    irr::core::vector2di outCellFront;
-    irr::f32 frontTerrainHeight = this->mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate(
-                frontCraftPoint.X,
-                frontCraftPoint.Z,
-                outCellFront);
-
-    /*irr::core::vector3df backCraftPoint(LocalCraftBackPnt);
-    matr.transformVect(backCraftPoint);
-
-    irr::core::vector2di outCellBack;
-    irr::f32 backTerrainHeight = this->mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate(
-                backCraftPoint.X,
-                backCraftPoint.Z,
-                outCellBack);*/
-
-    //update current distanced based on the heightmap collision
-    //data
-    currDistCraftTerrainFront = frontCraftPoint.Y - frontTerrainHeight;
-    //currDistCraftTerrainBack =  backCraftPoint.Y - backTerrainHeight;
-
-    //internal variable firstHeightControlLoop is used to prevent a
-    //first unwanted JUMP detection when the first loop of PlayerCraftHeightControl is
-    //executed at the start of the race (due to uninitialized variables)
-    if (!firstHeightControlLoop) {
-        //is craft currently jumping?
-        if (!mCurrJumping) {
-            //are we suddently start a jump?
-            //we should be able to detect this when the front distance between craft
-            //and race track below is suddently much bigger (because of the hole in the front
-            //of the craft that is opening)
-            if ((currDistCraftTerrainFront - HOVER_HEIGHT) > CRAFT_JUMPDETECTION_THRES ) {
-                  this->mCurrJumping = true;
-
-                  //reset in air time
-                  mCurrInAirTime = 0.0f;
-
-                  //message for debugging
-                  /*if (mHUD !=nullptr) {
-                         this->mHUD->ShowGreenBigText((char*)("JUMP"), 0.5f, false);
-                  }*/
-            }
-        } else {
-            //craft currently jumping
-            //is the jump over again?
-            //the jump is over when distance between craft front and race track
-            //falls below normal hover height
-            if (currDistCraftTerrainFront < HOVER_HEIGHT) {
-                this->mCurrJumping = false;
-
-                //message for debugging
-                /*if (mHUD !=nullptr) {
-                    this->mHUD->ShowGreenBigText((char*)("JUMP END"), 0.1f, false);
-                }*/
-            }
-        }
-
-         if (mCurrJumping) {
-           mCurrInAirTime += deltaTime;
-         }
-
-      /*  if (mCurrJumping) {
-            //slowly move craft downwards while jumping, instead of the normal
-            //craft height control below, while we jump we are disconnected from the
-            //race track surface
-
-            //make the force downwards dependent on in air time
-            //that means shorter jumps are easier for the player keeping
-            //the downwards force first lower
-            //but then with increasing air time the downward force is increased
-            //so that the player does not fly to long through the air
-            mCurrInAirTime += deltaTime;
-
-            irr::core::vector3df downwardForce(0.0f, 0.0f, 0.0f);
-
-            //14.04.2025: For the first level 6 jump and more jumps in level 8 we need a little bit of help to be able
-            //to make the jump without using the booster; otherwise we can not fly over the wall on
-            //the other side. Therefore let player model fly upwards at the beginning
-            //feels weird, but there is no other solution right now :(
-            if (mCurrInAirTime < 0.3f) {
-                downwardForce.Y = -10.0f + 33.3f * mCurrInAirTime;
-            } else if (mCurrInAirTime > 0.3f) {
-                downwardForce.Y = 0.0f + 10.0f * (mCurrInAirTime - 0.3f);
-            }
-
-            //put limit at maximum force downwards
-            if (downwardForce.Y > 25.0f)
-                downwardForce.Y = 25.0f;
-
-            //Apply force to the players model
-            this->phobj->AddLocalCoordForce(LocalCraftOrigin, LocalCraftOrigin - downwardForce, PHYSIC_APPLYFORCE_REAL,
-                                            PHYSIC_DBG_FORCETYPE_HEIGHTCNTRL);
-        }*/
-
-        /*if (mDbgCurrRecording) {
-            dbgRecordFrontHeight->push_back(frontTerrainHeight);
-            dbgRecordBackHeight->push_back(backTerrainHeight);
-            if (mCurrJumping) {
-                dbgRecordCurrJumping->push_back(1);
-            } else {
-                   dbgRecordCurrJumping->push_back(0);
-            }
-        }*/
-
-    } else {
-        //internal variables to prevent first unwanted
-        //jump after start of race
-        firstHeightControlLoop = false;
-    }
-}
-
-void Player::CraftHeightControl() {
-    //*****************************************************
-    //* Hovercraft height control force calculation Start *  solution 1: with the 4 local points left, right, front and back of craft
-    //*****************************************************
-
-    //remember last distance in front of craft towards race track
-    //needed for jump detection
-
-    lastHeightFront = currHeightFront;
-    lastHeightBack = currHeightBack;
-
-    //establish height information of race track below player craft
-    GetHeightRaceTrackBelowCraft(currHeightFront, currHeightBack, currHeightLeft, currHeightRight);
-
-    currDistCraftTerrainFront = WorldCoordCraftFrontPnt.Y - currHeightFront;
-    currDistCraftTerrainBack = WorldCoordCraftBackPnt.Y - currHeightBack;
-
-    //when we jump run different code then in default
-    //height control
-    if (mCurrJumping) {
-            //slowly move craft downwards while jumping, instead of the normal
-            //craft height control below, while we jump we are disconnected from the
-            //race track surface
-
-            //make the force downwards dependent on in air time
-            //that means shorter jumps are easier for the player keeping
-            //the downwards force first lower
-            //but then with increasing air time the downward force is increased
-            //so that the player does not fly to long through the air
-            //mCurrInAirTime += deltaTime;
-
-            irr::core::vector3df downwardForce(0.0f, 0.0f, 0.0f);
-
-            //14.04.2025: For the first level 6 jump and more jumps in level 8 we need a little bit of help to be able
-            //to make the jump without using the booster; otherwise we can not fly over the wall on
-            //the other side. Therefore let player model fly upwards at the beginning
-            //feels weird, but there is no other solution right now :(
-            if (mCurrInAirTime < 0.3f) {
-                downwardForce.Y = -70.0f + 140.3f * mCurrInAirTime;
-            } else if (mCurrInAirTime > 0.3f) {
-                downwardForce.Y = 0.0f + 140.0f * (mCurrInAirTime - 0.3f);
-            }
-
-            //put limit at maximum force downwards
-            if (downwardForce.Y > 100.0f)
-                downwardForce.Y = 100.0f;
-
-            //Apply force to the players model
-            this->phobj->AddLocalCoordForce(LocalCraftOrigin, LocalCraftOrigin - downwardForce, PHYSIC_APPLYFORCE_REAL,
-                                            PHYSIC_DBG_FORCETYPE_HEIGHTCNTRL);
-
-        return;
-    }
-
-    /*DbgCurrRaceTrackHeightFront = currHeightFront;
-    DbgCurrRaceTrackHeightBack = currHeightBack;
-    DbgCurrRaceTrackHeightLeft = currHeightLeft;
-    DbgCurrRaceTrackHeightRight = currHeightRight;*/
-
-    /*****************************************
-     * Starting from here we control craft   *
-     * height for normal flight (no jump)    *
-     * Craft corners are controlled based    *
-     * on racetrack height below             *
-     * *************************************** */
-
-    irr::f32 heightErrorFront = (WorldCoordCraftFrontPnt.Y - (currHeightFront + HOVER_HEIGHT));
-    irr::f32 heightErrorBack = (WorldCoordCraftBackPnt.Y - (currHeightBack + HOVER_HEIGHT));
-    irr::f32 heightErrorLeft = (WorldCoordCraftLeftPnt.Y - (currHeightLeft + HOVER_HEIGHT));
-    irr::f32 heightErrorRight = (WorldCoordCraftRightPnt.Y - (currHeightRight + HOVER_HEIGHT));
-
-    //if we are close to terrain heightmap collision stop the height control loop
-    //because otherwise we are pulled upwards of steep slopes etc.
-    if (this->mHMapCollPntData.front->currState != STATE_HMAP_COLL_IDLE) {
-        heightErrorFront = 0.0f;
-        heightErrorBack = 0.0f;
-    }
-
-    if (this->mHMapCollPntData.back->currState != STATE_HMAP_COLL_IDLE) {
-        heightErrorFront = 0.0f;
-        heightErrorBack = 0.0f;
-    }
-
-    if (this->mHMapCollPntData.left->currState != STATE_HMAP_COLL_IDLE) {
-        heightErrorLeft = 0.0f;
-        heightErrorRight = 0.0f;
-    }
-
-    if (this->mHMapCollPntData.right->currState != STATE_HMAP_COLL_IDLE) {
-        heightErrorLeft = 0.0f;
-        heightErrorRight = 0.0f;
-    }
-
-    //Split forces into 2 groups: Higher forces when craft needs to get heigher
-    //for example when driving up a hill; Lower forces when going down a hill
-
-    //best values until now 01.08.2024
-    irr::f32 corrForceHeightDown = 200.0f;
-    irr::f32 corrDampingHeightDown = 10.0f;
-
-    //Experimental value 30.12.2025:
-    irr::f32 corrForceHeightUp = 400.0f;
-    irr::f32 corrDampingHeightUp = 10.0f;
-
-    irr::f32 preventFlip = craftUpwardsVec.dotProduct(*mRace->mGame->yAxisDirVector);
-
-    //original lines until 21.12.2024
-    irr::f32 currVelFront =  this->phobj->GetVelocityLocalCoordPoint(LocalCraftFrontPnt).Y;
-    irr::f32 corrForceFront;
-
-    if (heightErrorFront < 0.0f) {
-       //Craft needs to quickly climb, Terrain is too close
-       corrForceFront = heightErrorFront * corrForceHeightUp + currVelFront * corrDampingHeightUp;
-    } else {
-       //Craft is too high
-       corrForceFront = heightErrorFront * corrForceHeightDown + currVelFront * corrDampingHeightDown;
-    }
-
-    //this line prevents flipping over the player model on the roof
-    corrForceFront = corrForceFront * preventFlip;
-
-    this->phobj->AddLocalCoordForce(LocalCraftFrontPnt, LocalCraftFrontPnt - irr::core::vector3df(0.0f, corrForceFront, 0.0f), PHYSIC_APPLYFORCE_REAL,
-                                            PHYSIC_DBG_FORCETYPE_HEIGHTCNTRL);
-
-    irr::f32 currVelBack = this->phobj->GetVelocityLocalCoordPoint(LocalCraftBackPnt).Y;
-
-    irr::f32 corrForceBack;
-
-    if (heightErrorBack < 0.0f) {
-        //Craft needs to quickly climb, Terrain is too close
-        corrForceBack = heightErrorBack * corrForceHeightUp + currVelBack * corrDampingHeightUp;
-    } else {
-        //Craft is too high
-        corrForceBack = heightErrorBack * corrForceHeightDown + currVelBack * corrDampingHeightDown;
-    }
-
-    //this line prevents flipping over the player model on the roof
-    corrForceBack = corrForceBack * preventFlip;
-
-    this->phobj->AddLocalCoordForce(LocalCraftBackPnt, LocalCraftBackPnt - irr::core::vector3df(0.0f, corrForceBack, 0.0f), PHYSIC_APPLYFORCE_REAL,
-                                    PHYSIC_DBG_FORCETYPE_HEIGHTCNTRL);
-
-    irr::f32 currVelLeft = this->phobj->GetVelocityLocalCoordPoint(LocalCraftLeftPnt).Y;
-
-    irr::f32 corrForceLeft;
-
-    if (heightErrorLeft < 0.0f) {
-       //Craft needs to quickly climb, Terrain is too close
-       corrForceLeft = heightErrorLeft * corrForceHeightUp + currVelLeft * corrDampingHeightUp;
-    } else {
-       //Craft is too high
-       corrForceLeft = heightErrorLeft * corrForceHeightDown + currVelLeft * corrDampingHeightDown;
-    }
-
-    //this line prevents flipping over the player model on the roof
-    corrForceLeft = corrForceLeft * preventFlip;
-
-    this->phobj->AddLocalCoordForce(LocalCraftLeftPnt, LocalCraftLeftPnt - irr::core::vector3df(0.0f, corrForceLeft, 0.0f), PHYSIC_APPLYFORCE_REAL,
-                                    PHYSIC_DBG_FORCETYPE_HEIGHTCNTRL);
-
-    irr::f32 currVelRight = this->phobj->GetVelocityLocalCoordPoint(LocalCraftRightPnt).Y;
-
-    irr::f32 corrForceRight;
-
-    if (heightErrorRight < 0.0f) {
-      //Craft needs to quickly climb, Terrain is too close
-      corrForceRight = heightErrorRight * corrForceHeightUp + currVelRight * corrDampingHeightUp;
-    } else {
-      //Craft is too high
-      corrForceRight = heightErrorRight * corrForceHeightDown + currVelRight * corrDampingHeightDown;
-    }
-
-    //this line prevents flipping over the player model on the roof
-    corrForceRight = corrForceRight * preventFlip;
-
-    this->phobj->AddLocalCoordForce(LocalCraftRightPnt, LocalCraftRightPnt - irr::core::vector3df(0.0f, corrForceRight, 0.0f), PHYSIC_APPLYFORCE_REAL,
-                                    PHYSIC_DBG_FORCETYPE_HEIGHTCNTRL);
 }
 
 void Player::SetName(char* playerName) {
@@ -2551,25 +1571,26 @@ void Player::PlayMGunShootsAtUsSound() {
 //returns TRUE if player reached below/equal 0 health (therefore if
 //player died); otherwise false is returned
 bool Player::Damage(irr::f32 damage, irr::u8 damageType) {
-    //if someone shoots with machine gun at us, and we are selected
-    //as the player to follow play the riccos sound
-    if ((damageType == DEF_RACE_DAMAGETYPE_MGUN) &&
-           (this->mRace->currPlayerFollow == this)) {
-               //Play machine gun shoots at us sounds
-               PlayMGunShootsAtUsSound();
-    }
+    //TODO: commented out, does not compile anymore
+    // //if someone shoots with machine gun at us, and we are selected
+    // //as the player to follow play the riccos sound
+    // if ((damageType == DEF_RACE_DAMAGETYPE_MGUN) &&
+    //        (this->mRace->currPlayerFollow == this)) {
+    //            //Play machine gun shoots at us sounds
+    //            PlayMGunShootsAtUsSound();
+    // }
 
-    //only deal positive damage!
-    if ((damage > 0.0f) && (this->mPlayerStats->mPlayerCurrentState != STATE_PLAYER_BROKEN)) {
-        this->mPlayerStats->shieldVal -= damage;
-        if (this->mPlayerStats->shieldVal <= 0.0f) {
-            this->mPlayerStats->shieldVal = 0.0f;
+    // //only deal positive damage!
+    // if ((damage > 0.0f) && (this->mPlayerStats->mPlayerCurrentState != STATE_PLAYER_BROKEN)) {
+    //     this->mPlayerStats->shieldVal -= damage;
+    //     if (this->mPlayerStats->shieldVal <= 0.0f) {
+    //         this->mPlayerStats->shieldVal = 0.0f;
 
-            this->WasDestroyed();
+    //         this->WasDestroyed();
 
-            return true;
-       }
-    }
+    //         return true;
+    //    }
+    // }
 
     return false;
 }
@@ -2717,61 +1738,6 @@ void Player::SetTarget(Player* newTarget) {
     }
 
     mLastTargetPlayer = mTargetPlayer;
-}
-
-void Player::CheckForTriggerCraftRegion() {
-    //remember last trigger region before next update
-    mLastCraftTriggerRegion = mCurrentCraftTriggerRegion;
-
-    std::vector<MapTileRegionStruct*>::iterator itRegion;
-
-    mCurrentCraftTriggerRegion = nullptr;
-
-    //16.05.2025: There is a (hidden) shortcut in level 2 that is opened by "driving" into the
-    //level wall. Problem is if we use the ships (origin middle) position to calculate the cell for craft trigger (which I did at the beginning),
-    //this point does not reach into the trigger area of the shortcut (because the heightmap collision detection and prevention
-    //prevents this middle coordinate to penetrate deep enough into the wall), and like this the way only opens when trying a lot of times,
-    //and with a lot of luck. It works but not acceptable.
-    //To make it work much better I decided to instead use a craft coordinate much further in the front of the craft, so that it can
-    //penetrate deep enough, and cause the craft trigger to fire much much easier. I decided to reuse a height map collision "sensor"
-    //coordinate for this trigger as well.
-    int mTrigCurrPosCellX = -(int)(this->mHMapCollPntData.front->wCoordPnt2.X / mRace->mLevelTerrain->segmentSize);
-    int mTrigCurrPosCellY = (int)(this->mHMapCollPntData.front->wCoordPnt2.Z / mRace->mLevelTerrain->segmentSize);
-
-    //check for each trigger region in level
-    for (itRegion = this->mRace->mTriggerRegionVec.begin(); itRegion != this->mRace->mTriggerRegionVec.end(); ++itRegion) {
-        //only check for regions which are a playercraft trigger region
-        if ((*itRegion)->regionType == LEVELFILE_REGION_TRIGGERCRAFT) {
-            //is the player inside this area?
-            if (this->mRace->mLevelTerrain->CheckPosInsideRegion(mTrigCurrPosCellX,
-                    mTrigCurrPosCellY, (*itRegion))) {
-
-                //assume craft can only be in one region at a certain time
-                //craft trigger regions should not overlap!
-                mCurrentCraftTriggerRegion = (*itRegion);
-                break;
-            }
-        }
-    }
-
-    //did we enter a new trigger region?
-    //if so we need to trigger the trigger event and tell the race
-    //about it
-    if (mCurrentCraftTriggerRegion != nullptr) {
-        if (mCurrentCraftTriggerRegion != mLastCraftTriggerRegion) {
-            //yes, we hit a new trigger region
-
-            //is this a one time trigger only trigger?
-            if (((*itRegion)->mOnlyTriggerOnce && (!(*itRegion)->mAlreadyTriggered))
-                    || (!(*itRegion)->mOnlyTriggerOnce)) {
-                       if ((*itRegion)->mOnlyTriggerOnce) {
-                           (*itRegion)->mAlreadyTriggered = true;
-                       }
-
-                       mRace->PlayerEnteredCraftTriggerRegion(this, mCurrentCraftTriggerRegion);
-            }
-        }
-    }
 }
 
 void Player::CheckForChargingStation(irr::f32 deltaTime) {
@@ -2974,7 +1940,6 @@ void Player::CheckForChargingStation(irr::f32 deltaTime) {
                    mChargingSoundSource = nullptr;
                }
        }
-
     }
 }
 
@@ -3066,337 +2031,6 @@ void Player::CheckDustCloudEmitter() {
     mLastEmitDustCloud = mEmitDustCloud;
 }
 
-void Player::GetHeightRaceTrackBelowCraft(irr::f32 &front, irr::f32 &back, irr::f32 &left, irr::f32 &right) {
-    //we need to control the height of the player according to the Terrain below
-    //irr::core::vector3d<irr::f32> SearchPosition;
-
-    //calculate craft travel direction
-    //the commented line below which calculate frontDir vom Velocity vector is bad, because at the start
-    //for example we have no velocity, and therefore frontDir is not defined; Therefore now height calculcation is
-    //possible for terrain below the craft
-    //irr::core::vector3df frontDir = (this->phobj->physicState.velocity / this->phobj->physicState.speed);
-
-    /*irr::core::vector3df frontDir;
-    irr::core::vector3df leftDir;
-    irr::core::vector3df rightDir;
-    irr::core::vector3df backDir;*/
-
-    this->Player_node->updateAbsolutePosition();
-    irr::core::matrix4 matr = this->Player_node->getAbsoluteTransformation();
-
-    irr::core::vector3df pos_in_worldspace_frontPos(LocalCraftFrontPnt);
-    matr.transformVect(pos_in_worldspace_frontPos);
-
-    irr::core::vector2di outCellFront;
-    front = this->mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate(
-                pos_in_worldspace_frontPos.X,
-                pos_in_worldspace_frontPos.Z,
-                outCellFront);
-
-    irr::core::vector3df pos_in_worldspace_RightPos(LocalCraftRightPnt);
-    matr.transformVect(pos_in_worldspace_RightPos);
-
-    irr::core::vector2di outCellRight;
-    right = this->mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate(
-                pos_in_worldspace_RightPos.X,
-                pos_in_worldspace_RightPos.Z,
-                outCellRight);
-
-    irr::core::vector3df pos_in_worldspace_LeftPos(LocalCraftLeftPnt);
-    matr.transformVect(pos_in_worldspace_LeftPos);
-
-    irr::core::vector2di outCellLeft;
-    left = this->mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate(
-                pos_in_worldspace_LeftPos.X,
-                pos_in_worldspace_LeftPos.Z,
-                outCellLeft);
-
-    irr::core::vector3df pos_in_worldspace_backPos(LocalCraftBackPnt);
-    matr.transformVect(pos_in_worldspace_backPos);
-
-    irr::core::vector2di outCellBack;
-    back = this->mRace->mLevelTerrain->GetCurrentTerrainHeightForWorldCoordinate(
-                pos_in_worldspace_backPos.X,
-                pos_in_worldspace_backPos.Z,
-                outCellBack);
-
-    //currTileBelowPlayer = nullptr;
-
-    //calculate current cell below player
-    //int current_cell_calc_x, current_cell_calc_y;
-
-    //current_cell_calc_y = (this->phobj->physicState.position.Z / mRace->mLevelTerrain->segmentSize);
-    //current_cell_calc_x = -(this->phobj->physicState.position.X / mRace->mLevelTerrain->segmentSize);
-
-    //currTileBelowPlayer = this->mRace->mLevelTerrain->GetMapEntry(current_cell_calc_x, current_cell_calc_y);
-
-    //just for debugging texture IDs
-    //currTextID = this->mRace->mLevelTerrain->GetMapEntry(current_cell_calc_x, current_cell_calc_y)->m_TextureId;
-    //AddTextureID(currTextID);
-
-    //*** search the Terrain cells in front of the player ***
-
-    //calculate terrain tilt from craft left to right
-    irr::f32 hdiff = left - right;
-    irr::f32 vdiff = (pos_in_worldspace_LeftPos - pos_in_worldspace_RightPos).getLength();
-
-    irr::f32 terrainTiltCraftLeftRightRad = asinf(hdiff/vdiff) ;
-    terrainTiltCraftLeftRightDeg = (terrainTiltCraftLeftRightRad / irr::core::PI) * 180.0f;
-
-    //calculate terrain tilt from craft front to back
-    hdiff = front - back;
-    vdiff = (pos_in_worldspace_frontPos - pos_in_worldspace_backPos).getLength();
-
-    irr::f32 terrainTiltCraftFrontBackRad = asinf(hdiff/vdiff) ;
-    terrainTiltCraftFrontBackDeg = (terrainTiltCraftFrontBackRad / irr::core::PI) * 180.0f;
-}
-
-//is called when the player collected a collectable item of the
-//level
-bool Player::CollectedCollectable(Collectable* whichCollectable) {
-    //depending on the type of entity/collectable alter player stats
-    Entity::EntityType type = whichCollectable->GetCollectableType();
-
-    //Note 08.03.2025: I was able to figure out the fuel and ammo items by comparing the effects
-    //in the original game with the effects in my project approx.
-    switch (type) {
-        case Entity::EntityType::ExtraFuel:
-            //Fuel item can only be picked up by the player, if fuel is currently
-            //not at max
-            if (!(this->mPlayerStats->gasolineVal < (this->mPlayerStats->gasolineMax * 0.98f))) {
-                //fuel is pretty maxed out, return without picking item up
-                return false;
-            }
-
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"EXTRA FUEL", 4.0f);
-            }
-
-            //after collecting an extra fuel when almost empty in the original game
-            //7 fuel bars where shown in the Hud afterwards, which is a fuel value between
-            //12f and 14f; so adding 12.0f should be approx. correct
-            this->mPlayerStats->gasolineVal += 12.0f;
-            if (this->mPlayerStats->gasolineVal > this->mPlayerStats->gasolineMax)
-                this->mPlayerStats->gasolineVal = this->mPlayerStats->gasolineMax;
-
-            break;
-
-        case Entity::EntityType::FuelFull:
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"FUEL FULL", 4.0f);
-            }
-
-            //the fuel full item sets the current fuel level to
-            //max possible fuel level; the max possible fuel level is not modified
-
-            this->mPlayerStats->gasolineVal = this->mPlayerStats->gasolineMax;
-
-            break;
-
-        case Entity::EntityType::DoubleFuel:
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"DOUBLE FUEL", 4.0f);
-            }
-
-            //the double fuel item sets the current gasoline level
-            //to twice the max possible value
-            //the max possible value is not modified;
-            //that means the first half possible distance the player
-            //takes on the course afterwards does not reduce the number of
-            //indicated fuel available bars in the Hud. This is also in the original
-            //game
-
-            this->mPlayerStats->gasolineVal = 2.0f * this->mPlayerStats->gasolineMax;
-
-            break;
-
-        case Entity::EntityType::ExtraAmmo:
-            //the extra ammo item increases the number of ammo
-            //(missiles) by exactly one missile. But this item can only be picked
-            //up by the player, if there is space for an additional missile
-            //if ammo is already at ammo max this item can not be picked up
-
-            if (!(this->mPlayerStats->ammoVal < this->mPlayerStats->ammoMax)) {
-                //ammo already full, collectible is not picked up
-                return false;
-            }
-
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"EXTRA AMMO", 4.0f);
-            }
-
-            //add one missile
-            this->mPlayerStats->ammoVal += 1.0f;
-
-            if (this->mPlayerStats->ammoVal > this->mPlayerStats->ammoMax)
-                this->mPlayerStats->ammoVal = this->mPlayerStats->ammoMax;
-
-            break;
-
-        case Entity::EntityType::AmmoFull:
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"AMMO FULL", 4.0f);
-            }
-
-            //the ammo full item sets the number
-            //of available ammo (missiles) to max value
-            //the max possible number of ammo stays at 6
-            this->mPlayerStats->ammoVal = this->mPlayerStats->ammoMax;
-
-            break;
-
-        case Entity::EntityType::DoubleAmmo:
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"DOUBLE AMMO", 4.0f);
-            }
-
-            //the double ammo item sets the number
-            //of available ammo (missiles) to twice the max possible value
-            //the max possible number of ammo stays at 6
-            //that means the first 6 missiles that are fired, do not
-            //reduce the number of indicated bars in the Hud
-            this->mPlayerStats->ammoVal = 2.0f * this->mPlayerStats->ammoMax;
-            break;
-
-        case Entity::EntityType::ExtraShield: 
-            //the extra shield item increases the number of shield
-            //hud bars by approx. 2 bars. But this item can only be picked
-            //up by the player, if the player has not already full shield
-            if (!(this->mPlayerStats->shieldVal < this->mPlayerStats->shieldMax)) {
-                //shield already full, collectible is not picked up
-                return false;
-            }
-
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"EXTRA SHIELD", 4.0f);
-            }
-
-            this->mPlayerStats->shieldVal += 15.0f;
-            if (this->mPlayerStats->shieldVal > this->mPlayerStats->shieldMax)
-                this->mPlayerStats->shieldVal = this->mPlayerStats->shieldMax;
-
-            break;
-
-        case Entity::EntityType::ShieldFull:
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"SHIELD FULL", 4.0f);
-            }
-
-            //based on how the fuel and ammo full item works (observed in original
-            //game), I guessed that the shield item should do the same. I did not actually
-            //fact check this with the original game
-
-            this->mPlayerStats->shieldVal = this->mPlayerStats->shieldMax;
-
-            break;
-
-        case Entity::EntityType::DoubleShield:
-            if (mHUD != nullptr) {
-                this->mHUD->ShowBannerText((char*)"DOUBLE SHIELD", 4.0f);
-            }
-
-            //based on how the fuel and ammo double item works (observed in original
-            //game), I guessed that the shield item should do the same. I did not actually
-            //fact check this with the original game
-
-            this->mPlayerStats->shieldVal = 2.0f * this->mPlayerStats->shieldMax;
-
-            break;
-
-        case Entity::EntityType::BoosterUpgrade:
-            //can only be picked up if booster upgrade level is not already
-            //at max
-            if (this->mPlayerStats->currBoosterUpgradeLevel < 3) {
-                this->mPlayerStats->currBoosterUpgradeLevel++;
-
-                //upgrade players booster
-                if (mHUD != nullptr) {
-                    this->mHUD->ShowBannerText((char*)"BOOSTER UPGRADED", 4.0f);
-                }
-            } else {
-                return false;
-            }
-
-            break;
-
-        case Entity::EntityType::MissileUpgrade:
-            //can only be picked up if missile upgrade level is not already
-            //at max
-            if (this->mPlayerStats->currRocketUpgradeLevel < 3) {
-                this->mPlayerStats->currRocketUpgradeLevel++;
-
-                if (mHUD != nullptr) {
-                    this->mHUD->ShowBannerText((char*)"MISSILE UPGRADED", 4.0f);
-                }
-            } else {
-                return false;
-            }
-
-            break;
-
-        case Entity::EntityType::MinigunUpgrade:
-            //can only be picked up if mini-gun upgrade level is not already
-            //at max
-            if (this->mPlayerStats->currMinigunUpgradeLevel < 3) {
-                this->mPlayerStats->currMinigunUpgradeLevel++;
-
-                //upgrade players mini-gun
-                if (mHUD != nullptr) {
-                    this->mHUD->ShowBannerText((char*)"MINIGUN UPGRADED", 4.0f);
-                }
-            } else {
-                return false;
-            }
-
-            break;
-
-        case Entity::EntityType::UnknownShieldItem:
-            //uncomment the next 2 lines to show this items also to the player
-            // collectable = new Collectable(41, entity.get_Center(), color, driver);
-            // ENTCollectables_List.push_back(collectable);
-            break;
-
-        case Entity::EntityType::UnknownItem:
-        case Entity::EntityType::Unknown:
-            //uncomment the next 2 lines to show this items also to the player
-            // collectable = new Collectable(50, entity.get_Center(), color, driver);
-            // ENTCollectables_List.push_back(collectable);
-            break;
-
-         //all the other entities we do not care here
-        default:
-            break;
-    }
-
-    //play sound
-    if (this->mHumanPlayer) {
-        this->mRace->mSoundEngine->PlaySound(SRES_GAME_PICKUP);
-    }
-
-    //collectible was picked up
-    return true;
-
-//    //if this is a computer player, was this item planed to be picked
-//    //up? if so reset variables for collectable logic
-//    if (!this->mHumanPlayer) {
-//        if (this->mCpTargetCollectableToPickUp == whichCollectable) {
-//            //yes, correct item picked up
-//            //set back to nullptr, so that player can lookup
-//            //next item he wants to collect
-//            mCpTargetCollectableToPickUp = nullptr;
-//            this->mCpWayPointLinkClosestToCollectable = nullptr;
-
-//            CurrentCommandFinished();
-//        }
-//    }
-}
-
-irr::f32 Player::GetHoverHeight() {
-    irr::f32 height = HOVER_HEIGHT;
-
-    return (height);
-}
-
 void Player::DebugSelectionBox(bool boundingBoxVisible) {
     if (boundingBoxVisible) {
         this->Player_node->setDebugDataVisible(E_DEBUG_SCENE_TYPE::EDS_BBOX);
@@ -3448,22 +2082,23 @@ void Player::FinishedLap() {
     }
 
     //do we need to show HUD Message for "final lap"
-    if (mPlayerStats->currLapNumber == mPlayerStats->raceNumberLaps) {
-        if (this->mRace->currPlayerFollow != nullptr) {
-            if (this->mRace->currPlayerFollow == this) {
-                if (mHUD != nullptr) {
-                    mHUD->ShowGreenBigText((char*)"FINAL LAP", 4.0f, true);
-                }
+    //TODO: commented out, does not compile anymore
+    // if (mPlayerStats->currLapNumber == mPlayerStats->raceNumberLaps) {
+    //     if (this->mRace->currPlayerFollow != nullptr) {
+    //         if (this->mRace->currPlayerFollow == this) {
+    //             if (mHUD != nullptr) {
+    //                 mHUD->ShowGreenBigText((char*)"FINAL LAP", 4.0f, true);
+    //             }
 
-                //in demo mode prevent the yee-haw sound
-                //from playing
-                if (!mRace->mDemoMode) {
-                    //play the yee-haw sound
-                    mRace->mSoundEngine->PlaySound(SRES_GAME_FINALLAP, false);
-                }
-            }
-        }
-    }
+    //             //in demo mode prevent the yee-haw sound
+    //             //from playing
+    //             if (!mRace->mDemoMode) {
+    //                 //play the yee-haw sound
+    //                 mRace->mSoundEngine->PlaySound(SRES_GAME_FINALLAP, false);
+    //             }
+    //         }
+    //     }
+    // }
 
     //reset current lap time
     mPlayerStats->currLapTimeExact = 0.0;

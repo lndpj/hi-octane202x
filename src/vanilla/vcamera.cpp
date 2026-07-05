@@ -279,7 +279,7 @@ void VCamera::camera_process_position(VVehicle* whichVehicle, VCameraWindowStruc
 
     if (v17 < 0.0f) {
        v22 = -0.03125f;
-       v23 = v16 * 65536.0f;
+       v23 = v16; // * 65536.0f;
        if (v17 <= -0.03125f) {
            v24 = v17;
            do {
@@ -295,17 +295,17 @@ void VCamera::camera_process_position(VVehicle* whichVehicle, VCameraWindowStruc
                    goto camera_process_position_LABEL16;
                }
                v22 -= 0.03125f;
-               v23 = v16 * 65536.0f;
+               v23 = v16; // * 65536.0f;
            } while (v22 >= v24);
        }
 camera_process_position_LABEL15:
-       v17 = v23 / 65536.0f;
+       v17 = v23; // / 65536.0f;
        goto camera_process_position_LABEL16;
     }
     v27 = 0.03125f;
     if (v17 < 0.03125f) {
 camera_process_position_LABEL14:
-        v23 = v16 * 65536.0f;
+        v23 = v16; //* 65536.0f;
         goto camera_process_position_LABEL15;
     }
     v28 = v17;

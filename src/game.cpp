@@ -318,7 +318,7 @@ bool Game::HandleGuiEvent(const irr::SEvent& event) {
 void Game::SetupDebugGame() {
 
     //which level should be directly entered?
-    nextRaceLevelNr = 8;
+    nextRaceLevelNr = 1;
 
     //set craft for main player
     //value 0 means KD1 Speeder (default selection at first start)
@@ -1245,8 +1245,8 @@ void Game::GameLoopRace(irr::f32 frameDeltaTime) {
                     this->mCurrentRace->mPlayerVec.at(1)->mCurrentPathSegSortedOutReverse.size()
                     );*/
 
-            swprintf(text2, 390, L"");
-          // swprintf(text2, 390, L"%lf", mCurrentRace->mVCraft->mDbgColl);
+           // swprintf(text2, 390, L"");
+           swprintf(text2, 390, L"%d", (int)(mCurrentRace->mSpriteThingList.size()));
 
          /*  swprintf(text2, 390, L"Increment.SpeedActual: %lf \nIncrementAdd.SpeedActual: %lf \nIncrementLimit.SpeedActual: %lf\nStat.Velocity: %lf", this->mCurrentRace->mVCraft->Increment.SpeedActual,
                     this->mCurrentRace->mVCraft->IncrementAdd.SpeedActual, this->mCurrentRace->mVCraft->IncrementLimit.SpeedActual, this->mCurrentRace->mVCraft->Stats.Velocity);*/
@@ -1291,8 +1291,8 @@ void Game::GameLoopRace(irr::f32 frameDeltaTime) {
             delete[] text2;
     }
 
-    if ((mCurrentRace->mVCamera != nullptr) && (mCurrentRace->mVCraft != nullptr)) {
-        mCurrentRace->mVCamera->camera_process(mCurrentRace->mVCraft, -1, 0);
+    if ((mCurrentRace->mVCamera != nullptr) && (mCurrentRace->mVanillaCraftVec.at(0) != nullptr)) {
+        mCurrentRace->mVCamera->camera_process(mCurrentRace->mVanillaCraftVec.at(0), -1, 0);
     }
 
     mDriver->beginScene(true,true,
@@ -1620,7 +1620,7 @@ bool Game::CreateNewRace(std::string targetLevel, std::vector<PilotInfoStruct*> 
     }
 
     //is there at least one player?
-    if (mCurrentRace->mPlayerVec.size() == 0) {
+    if (mCurrentRace->mVanillaCraftVec.size() == 0) {
         //no player in race, we need to interrupt
         //no race possible
         logging::Error("Not a single player in race, interrupt race creation");

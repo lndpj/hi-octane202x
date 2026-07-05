@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2024 Wolf Alexander
+ Copyright (C) 2026 Wolf Alexander
 
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
 
@@ -23,6 +23,7 @@ class DrawDebug;
 class Player;
 class EntityItem;
 class Collectable;
+class VVehicle;
 class ChargingStation;
 
 struct CheckPointInfoStruct {
@@ -30,6 +31,8 @@ struct CheckPointInfoStruct {
     irr::scene::IMeshSceneNode* SceneNode = nullptr;
     //pntr to checkpoint Irrlich Mesh
     irr::scene::SMesh* Mesh = nullptr;
+
+    irr::core::aabbox3d<irr::f32> checkPointBox;
 
     //value for checkpoint, is defined
     //within level file with increasing
@@ -128,13 +131,13 @@ public:
 
     std::pair <WayPointLinkInfoStruct*, irr::core::vector3df> PlayerDeriveClosestWaypointLink(std::vector<std::pair <WayPointLinkInfoStruct*, irr::core::vector3df>>
                                                             inputWayPointLinkVector);
-    std::vector<std::pair <WayPointLinkInfoStruct*, irr::core::vector3df>> PlayerFindCloseWaypointLinks(Player* player);
+    std::vector<std::pair <WayPointLinkInfoStruct*, irr::core::vector3df>> PlayerFindCloseWaypointLinks(VVehicle* player);
 
     std::vector<EntityItem*> FindAllWayPointsInArea(irr::core::vector3df location, irr::f32 radius);
 
     EntityItem* FindFirstWayPointAfterRaceStartPoint();
 
-    std::vector<WayPointLinkInfoStruct*> FindPathToNextCheckPoint(Player *whichPlayer);
+    std::vector<WayPointLinkInfoStruct*> FindPathToNextCheckPoint(VVehicle *whichPlayer);
     bool ContinuePathSearchForPlayer(WayPointLinkInfoStruct *startLink,
                 WayPointLinkInfoStruct* wayPointLinkNearPlayer, std::vector<WayPointLinkInfoStruct*> &resultPath,
                                      WayPointLinkInfoStruct* interruptLink, bool firstLink);
@@ -184,7 +187,7 @@ public:
 
     //is used within Recovery vehicle to be able to execute a workaround in case we do not know the location
     //anymore where to put a player back after its physics reset
-    std::vector<WayPointLinkInfoStruct*> DeliverAllWayPointLinksThatLeadIntoPlayersNextExpectedCheckpoint(Player* player);
+    std::vector<WayPointLinkInfoStruct*> DeliverAllWayPointLinksThatLeadIntoPlayersNextExpectedCheckpoint(VVehicle* player);
 
     //Returns nullptr if within the next 5 waypoint links the specified
     //charger type was not found, but with proper level design this
@@ -194,6 +197,8 @@ public:
     //returns a vector containing all charging stations
     //which a certain defined waypoint link intersects
     std::vector<ChargingStation*> WhichChargingStationsDoesAWayPointLinkIntersect(WayPointLinkInfoStruct* whichLink);
+
+    irr::core::vector3df ProjectPointOnLine(irr::core::vector3df point, irr::core::line3df line);
 
 private:
     Race* mRace = nullptr;

@@ -354,7 +354,11 @@ sf::Sound* SoundEngine::PlaySound(uint8_t soundResId, bool localizedSoundSource,
 void SoundEngine::StopLoopingSound(sf::Sound* pntrSound) {
     if (pntrSound != nullptr) {
         if (pntrSound->getStatus() == sf::SoundSource::Status::Playing) {
-            pntrSound->stop();
+            //05.07.2026: Change: Better do not stop sound "hard" in the
+            //middle of playing, does not sound good
+            //better end looping and sound stops itself at the end
+            //pntrSound->stop();
+            pntrSound->setLooping(false);
         }
     }
 }

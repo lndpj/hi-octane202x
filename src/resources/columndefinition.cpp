@@ -291,6 +291,48 @@ int16_t ColumnDefinition::get_H() {
    return mH;
 }
 
+int16_t ColumnDefinition::get_BlockId_forBlockNrFromBottom(uint8_t forBlockIdx) {
+    switch(forBlockIdx) {
+        case 0: {
+            return get_A();
+        }
+
+        case 1: {
+            return get_B();
+        }
+
+        case 2: {
+            return get_C();
+        }
+
+        case 3: {
+            return get_D();
+        }
+
+        case 4: {
+            return get_E();
+        }
+
+        case 5: {
+            return get_F();
+        }
+
+        case 6: {
+            return get_G();
+        }
+
+        case 7: {
+            return get_H();
+        }
+
+        default: {
+            break;
+        }
+    }
+
+    return 0;
+}
+
 uint8_t ColumnDefinition::get_Unknown4() {
     return mUnknown4;
 }

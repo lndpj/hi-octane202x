@@ -309,6 +309,8 @@ add_executable(hi-octane202x
     src/vanilla/debug/structs/vvectors.cpp
     src/vanilla/debug/structs/cam.h
     src/vanilla/debug/structs/cam.cpp
+    src/vanilla/spritething.h
+    src/vanilla/spritething.cpp
 
     src/utils/boundingbox/coord_frame.h
     src/utils/boundingbox/basis.h

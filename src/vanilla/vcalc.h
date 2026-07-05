@@ -158,6 +158,11 @@ public:
     //directly below the specified 3D position
     irr::f32 map_altitude_column_and_floor(irr::core::vector3df position);
 
+    //Function programmed to have similar behavior as function "map_altitude_lowest"
+    //in original game.
+    //Input position parameter: Enter coordinates according to vanilla game coordinate system
+    irr::f32 map_altitude_lowest(irr::core::vector3df position);
+
     //This function was written to behave similar to the function
     //map_colide in the original game
     //Does determine if a 3D input position is in free space, or if it does

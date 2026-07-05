@@ -1605,7 +1605,7 @@ void CpuPlayer::PickupCollectableDefineNextSegment(Collectable* whichCollectable
 //some error cases where we could lose our current path progress we need
 //to try to restart with a new clean path/path status, this is done by this routine
 void CpuPlayer::WorkaroundResetCurrentPath() {
-
+/*
     mParentPlayer->LogMessage((char*)"WorkaroundResetCurrentPath was called");
 
     //which waypoint link is the closest one to us right now?
@@ -1623,7 +1623,7 @@ void CpuPlayer::WorkaroundResetCurrentPath() {
        AddCommand(CMD_FOLLOW_TARGETWAYPOINTLINK, closestLink.first);
    }
 
-  computerPlayerTargetSpeed = CP_PLAYER_SLOW_SPEED;
+  computerPlayerTargetSpeed = CP_PLAYER_SLOW_SPEED;*/
 }
 
 /*  was just an attempt at 06.06.2025, commented out right now again
