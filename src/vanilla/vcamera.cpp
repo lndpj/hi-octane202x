@@ -285,7 +285,7 @@ void VCamera::camera_process_position(VVehicle* whichVehicle, VCameraWindowStruc
            do {
                //TODO: the next line is just an assumption, could be
                //completely wrong!
-               position = whichVehicle->View.Position;
+               position = vanillaOutputCameraWindow.Camera.Position;
                mParentRace->mVCalc->move_xyz(position, v15, v21, v22);
                position.Z += 0.0625f;
 
@@ -312,7 +312,7 @@ camera_process_position_LABEL14:
     while (1) {
         //TODO: the next line is just an assumption, could be
         //completely wrong!
-        position = whichVehicle->View.Position;
+        position = vanillaOutputCameraWindow.Camera.Position;
         mParentRace->mVCalc->move_xyz(position, v15, v21, v27);
         v30 = mParentRace->mVCalc->map_colide_4point(position, 0.5f, 0.5f);
         v17 = v27;
@@ -347,21 +347,22 @@ camera_process_position_LABEL16:
         mParentRace->mVCalc->angle_get_difference(vanillaOutputCameraWindow.Camera.AngleXY,
                                                   vanillaOutputCameraWindow.ChaseCamera.AngleXY);
 
-    vanillaOutputCameraWindow.Camera.AngleXY += difference / 8.0f;
+    vanillaOutputCameraWindow.Camera.AngleXY += (difference / 8.0f);
 
     v41 = mParentRace->mVCalc->angle_get_difference(vanillaOutputCameraWindow.Camera.AngleXZ,
                                                     vanillaOutputCameraWindow.ChaseCamera.AngleXZ);
 
-    vanillaOutputCameraWindow.Camera.AngleXZ += v41 / 8.0f;
+    vanillaOutputCameraWindow.Camera.AngleXZ += (v41 / 8.0f);
 
     v44 = mParentRace->mVCalc->angle_get_difference(vanillaOutputCameraWindow.Camera.AngleZY,
                                                     vanillaOutputCameraWindow.ChaseCamera.AngleZY);
 
-    vanillaOutputCameraWindow.Camera.AngleZY += v44 / 8.0f;
+    vanillaOutputCameraWindow.Camera.AngleZY += (v44 / 8.0f);
 
-    v46 = vanillaOutputCameraWindow.ChaseCamera.Distance - vanillaOutputCameraWindow.Camera.Distance;
+    v46 = vanillaOutputCameraWindow.ChaseCamera.Distance -
+            vanillaOutputCameraWindow.Camera.Distance;
 
-    v47 = v46 / 8.0f;
+    v47 = (v46 / 8.0f);
     if (v46 < 0.0f) {
         v47 = (v46 + 0.02734375f) / 8.0f;
     }

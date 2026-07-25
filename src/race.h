@@ -143,6 +143,7 @@ class VTrack;
 class VCamera;
 class DbgInterface;
 class SpriteThing;
+struct ThingDataStruct;
 
 class Race {
 public:
@@ -202,7 +203,6 @@ public:
     std::vector<LineStruct*> *ENTWallsegmentsLine_List = nullptr;
 
     irr::f32 GetAbsOrientationAngleFromDirectionVec(irr::core::vector3df dirVector, bool correctAngleOutsideRange = true);
-    void CheckPlayerCrossedCheckPoint(VVehicle* whichPlayer);
 
     //attacker is the enemy player that does damage the player targetToHit
     //for damage that an entity does cause (for example steamFountain) attacker is set
@@ -343,9 +343,15 @@ public:
 
     void AddSpriteThing(SpriteThing* newSpriteThing);
 
+    //Coordinates in the vector below are stored in the "vanilla"
+    //coordinate system
+    std::vector<ThingDataStruct*> mVanillaCheckpointVec;
+
 private:
     std::string mLevelRootPath;
     std::string mLevelName;
+
+    irr::f32 mVanillaGameLoopTimer = 0.0f;
 
     void UpdateSpriteThings(irr::f32 deltaTime);
 
@@ -355,7 +361,7 @@ private:
     //otherwise
     bool SetupSky();
 
-    void InitialUpdateCollectablePositions();
+    void InitialUpdateEntityPositions();
 
     irr::s32 shaderMaterial1;
 
@@ -483,11 +489,6 @@ private:
     void createCheckpointMeshData(CheckPointInfoStruct &newStruct);
     std::vector<CheckPointInfoStruct*> *checkPointVec = nullptr;
 
-    void UpdatePlayerDistanceToNextCheckpoint(VVehicle* whichPlayer);
-    void UpdatePlayerRacePositionRanking();
-    void UpdatePlayerRacePositionRankingHelper2(std::vector< pair <irr::s32, VVehicle*> > vecNextCheckPointExpected);
-    void UpdatePlayerRacePositionRankingHelper3(std::vector< pair <irr::f32, VVehicle*> > vecRemainingDistanceToNextCheckpoint);
-
     void CheckPlayerCollidedCollectible(VVehicle* player);
 
     //my vector of SteamFountains
@@ -583,6 +584,9 @@ private:
     std::vector<Collectable*> mType2CollectableForCleanupLater;
 
     void CreateChargingStations();
+
+    uint8_t vehicle_race_positions_compare(VVehicle* vehicle1, VVehicle* vehicle2);
+    void vehicle_race_positions();
 
     //Switch for the vanillia model
     bool mAddVVehicle = false;

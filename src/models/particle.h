@@ -23,6 +23,7 @@ const irr::f32 DEF_DUSTPARTICLELIFETIME = 2.0f;  //0.5f before debugging, reset 
 class Player;
 class Race;
 class EntityItem;
+class VVehicle;
 
 class SmokeParticle: public SpriteParticle {
 public:
@@ -93,7 +94,7 @@ public:
 
 class DustBelowCraft {
 public:
-    DustBelowCraft(irr::scene::ISceneManager* smgr, irr::video::IVideoDriver* driver, Player* parentPlayer,
+    DustBelowCraft(irr::scene::ISceneManager* smgr, irr::video::IVideoDriver* driver, VVehicle* parentPlayer,
                   irr::u32 nrMaxParticles);
 
     ~DustBelowCraft();
@@ -106,7 +107,7 @@ private:
     bool mVisible;
     bool mActivated = false;
 
-    Player* mParentPlayer = nullptr;
+    VVehicle* mParentPlayer = nullptr;
 
     irr::video::ITexture* mDustTex = nullptr;
     irr::core::dimension2d<irr::u32> mDustTexSize;

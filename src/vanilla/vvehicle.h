@@ -57,6 +57,7 @@
 
 class Collectable;
 class HUD;
+class DustBelowCraft;
 
 struct VehicleSensorPointStruct {
     irr::core::vector3df Position;
@@ -97,9 +98,13 @@ struct VehicleFunctionFlagsStruct {
     bool Booster;
     bool Brake;
     bool BarrelRoll;
+    bool Pad1;  //seems to be used for checkpoint processing logic
+    bool Pad2;  //seems to be used for checkpoint processing logic
+    bool Pad3;  //seems to be used for vehicle control logic
     bool Pad4;  //seems to be used for computer player control
     bool Pad6;  //seems to be used during collision detection with vector collision
     bool Pad9;  //seems to be used for computer player control
+    bool Pad12; //seems to be used for checkpoint processing logic
 };
 
 struct VehicleCollideControlStruct {
@@ -125,6 +130,11 @@ struct VehicleStatsStruct {
     int16_t Health;
     irr::f32 Velocity;
 
+    int16_t Weight;
+    int16_t Invincable;
+    int16_t Invisible;
+    int16_t VehicleHit;
+
     //TODO: Move to the MGun and Rocket
     //weapon structs later
     int16_t MGunUpgrade;
@@ -141,6 +151,13 @@ struct VehicleViewStruct {
     irr::f32 AngleXY;
     irr::f32 AngleZY;
     irr::f32 AngleXZ;
+};
+
+struct VehicleSpecialMovesStruct {
+    irr::f32 AngleXY;
+    irr::f32 AngleZY;
+    irr::f32 AngleXZ;
+    int16_t Count;
 };
 
 struct VehicleBoosterStruct {
@@ -168,8 +185,19 @@ struct VehicleBoosterStruct {
 //in the Control related struct, but I moved it
 //to vehicle
 struct VehicleConditionsStruct {
+    int32_t BumpAmount = 0;
+    int32_t LapTimes[100];
+    int32_t TotalTime = 0;
+    int32_t LapCount = 0;
     int32_t FuelUsed = 0;
+    int32_t HealthUsed = 0;
     int32_t WeaponsUsed = 0;
+
+    int32_t RacePositionFinishShowTime = 0;
+
+    bool FlagKill = false;
+    bool FlagDeath = false;
+    bool FlagNewLap = false;
 
     //not sure if the variables below
     //are needed for my purpose
@@ -186,6 +214,13 @@ struct VehicleConditionsStruct {
     int8_t FuelLowCounter = 0;
     int8_t WeaponsLowCounter = 0;
     int8_t HealthLowCounter = 0;
+};
+
+struct VehicleDamageStruct {
+    uint16_t ShimmerCount = 0;
+    uint16_t BulletCount = 0;
+    uint16_t MissileCount = 0;
+    uint16_t BulletHoles = 0;
 };
 
 struct VehicleComputerPlayerStruct {
@@ -226,7 +261,6 @@ public:
     //Thing data
     ThingDataStruct ThingData;
 
-private:
     Race* mRace = nullptr;
 
 public:
@@ -246,6 +280,8 @@ public:
     irr::core::vector3df Displacement;
     irr::core::vector3df Slope;
     irr::core::vector3df Bump;
+
+    VehicleSpecialMovesStruct Tumble;
 
     //Stats
     VehicleStatsStruct Stats;
@@ -268,10 +304,9 @@ public:
     VehicleBoosterStruct Booster;
     VehicleConditionsStruct Conditions;
     VehicleViewStruct View;
+    VehicleDamageStruct Damage;
 
     irr::f32 mDeltaTimeFactor = 1.0f;
-
-    uint16_t dbgTrackCurrWayPoint = 0;
 
     irr::f32 mDbgColl;
 
@@ -316,15 +351,9 @@ public:
     //the following variable is used for race position calculation
     irr::f32 remainingDistanceToNextCheckPoint = 0.0f;
 
-    irr::u8 currRacePlayerPos = 0;
-    irr::u8 overallPlayerNumber = 0;
-
-    irr::u8 currLapNumber = 1;
-    irr::u8 raceNumberLaps = 6;
-
     bool mHasFinishedRace = false;
 
-    void CrossedCheckPoint(irr::s32 valueCrossedCheckPoint, irr::s32 numberOfCheckpoints);
+    uint32_t ControlStatus = 1;
 
     //Important note: This 3D Vector is stored in the Irrlicht
     //coordinate system!
@@ -344,10 +373,41 @@ public:
     void StartPlayingWarningSound();
     void StopPlayingWarningSound();
 
+    irr::core::vector3df IrrCoordGetDustEmitterPosition();
+
+    void vehicle_setup_tumble();
+    void vehicle_set_autodrive_on();
+    uint8_t vehicle_set_autopilot_on();
+
+    uint8_t vehicle_race_positions_compare(VVehicle* vehicle2);
+
+    //this three variables need to be public, so that the Race
+    //can derive the current players race position
+    uint16_t CheckPoint = 0;
+    int16_t LapCounter = 0;
+    int16_t RaceLaps = 0;
+    irr::f32 DistanceToNextCheckpoint = 0.0f;
+
+    int16_t RacePosition = 0;
+    int16_t RacePlayerCount = 0;
+    int16_t RacePositionFinish = 0;
+    uint16_t CurrentWaypoint = 0;
+
+    int32_t FastestLapNr = 0;
+    int32_t FastestLapTicks = 0;
+    int32_t LapTicks = 0;
+    int32_t LastLapTicks = 0;
+
 private:
     uint32_t ControlOrigin = 1; //activates the human player
     uint16_t LastWayPoint = 0;
-    uint16_t CurrentWaypoint = 0;
+
+    //This variables seems to have something to do with
+    //checkpoint handling
+    size_t Counter[8];
+
+    int32_t TotalRaceTicks = 0;
+    int32_t TotalRaceTicksFinished = 0;
 
     irr::u8 mPlayerCurrentState;
 
@@ -361,14 +421,26 @@ private:
 
     void SetupFlightModelConstants();
 
+    void vehicle_execute_action0x0_initialize();
+    void vehicle_execute_action0x1_defaultracing();
+    void vehicle_execute_action0x9_beforeexploding();
+    void vehicle_execute_action0x11_spawnpowerups();
+    void vehicle_execute_action0x19_reset();
+
+    void vehicle_do_action();
+
     VehicleComputerPlayerStruct ComputerPlayer;
     void vehicle_setup_computer_character();
 
     void vehicle_control();
     void vehicle_control_from_player();
     uint8_t vehicle_control_from_autopilot();
-    uint8_t vehicle_set_autopilot_on();
     uint8_t vehicle_set_autopilot_off();
+    void vehicle_set_autodrive_off();
+
+    //Returns true if BarrelRoll is not yet fininshed, False
+    //if BarrelRoll has ended
+    bool vehicle_do_tumble();
 
     void vehicle_get_track_friction();
     void vehicle_calculate_angle();
@@ -389,6 +461,13 @@ private:
     void vehicle_set_camera();
     void vehicle_post_process();
 
+    int32_t vehicle_get_checkpoint();
+    uint8_t vehicle_process_checkpoint(size_t cp_colide);
+    size_t vehicle_checkpoint_find_next(size_t forWayPointIdx);
+    void vehicle_checkpoint_next_lap();
+
+    void UpdateEngineSound();
+
     bool OrientedBBoxCollision(VVehicle* vehicle1, VVehicle* vehicle2,
                                         irr::core::vector3df& collNormal, irr::f32& depth);
 
@@ -405,12 +484,20 @@ private:
     irr::core::vector3d<irr::f32> IrrLocalCraftOrigin;
     irr::core::vector3d<irr::f32> IrrLocalCraftTriggerSensor;
 
+    //local position on the craft where dust clouds are created when
+    //hovering above dusty tiles next to the race track
+    irr::core::vector3d<irr::f32> IrrLocalCraftDustPnt;
+
     irr::core::vector3d<irr::f32> IrrWorldCraftFrontPnt;
     irr::core::vector3d<irr::f32> IrrWorldCraftBackPnt;
     irr::core::vector3d<irr::f32> IrrWorldCraftLeftPnt;
     irr::core::vector3d<irr::f32> IrrWorldCraftRightPnt;
     irr::core::vector3d<irr::f32> IrrWorldCraftOrigin;
     irr::core::vector3d<irr::f32> IrrWorldCraftTriggerSensor;
+
+    //world coordinate position on the craft where dust clouds are created when
+    //hovering above dusty tiles next to the race track
+    irr::core::vector3d<irr::f32> IrrWorldCraftDustPnt;
 
     sf::Sound* mWarningSoundSource = nullptr;
 
@@ -465,6 +552,20 @@ private:
     bool mBlockAdditionalFuelFullMsg = true;
     bool mBlockAdditionalShieldFullMsg = true;
     bool mBlockAdditionalAmmoFullMsg = true;
+
+    //each player has a particle system for the
+    //case the craft is hovering above a dusty tile
+    //to emit dust clouds below the craft
+    //Is the original game does
+    DustBelowCraft* mDustBelowCraft = nullptr;
+
+    void CheckDustCloudEmitter();
+
+    //definition of dirt texture elements vector
+    std::vector<irr::s32> *dirtTexIdsVec = nullptr;
+
+    bool mEmitDustCloud = false;
+    bool mLastEmitDustCloud = false;
 
     void FinishedLap();
     void FinishedRace();

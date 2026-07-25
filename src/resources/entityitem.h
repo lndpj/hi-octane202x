@@ -75,6 +75,8 @@ public:
     void setUnknown2(int16_t newValue);
     void setUnknown3(int16_t newValue);
 
+    irr::core::vector3df DecodeCollideSize();
+
     float getOffsetX();
     float getOffsetY();
     void setOffsetX(float newOffsetX);

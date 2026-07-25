@@ -1021,7 +1021,7 @@ void HUD::DrawHUD1PlayerRace(irr::f32 deltaTime) {
         }
 
         //draw current player race position
-        int hlp = monitorWhichPlayer->currRacePlayerPos;
+        int hlp = monitorWhichPlayer->RacePosition;
 
         if (hlp < 0)
             hlp = 0;
@@ -1037,7 +1037,7 @@ void HUD::DrawHUD1PlayerRace(irr::f32 deltaTime) {
               (*currRacePlayerPosition)[10]->sourceRect, 0, *mColorSolid, true);
 
         //draw overall number of players in race
-        hlp = monitorWhichPlayer->overallPlayerNumber;
+        hlp = monitorWhichPlayer->RacePlayerCount;
 
         if (hlp < 0)
             hlp = 0;
@@ -1056,9 +1056,17 @@ void HUD::DrawHUD1PlayerRace(irr::f32 deltaTime) {
         mGame->mGameTexts->DrawGameNumberText(lapNumStr,
                                                mGame->mGameTexts->HudLaptimeNumberRed, mPosLapSymbol);
 
+        int16_t lapCnter = monitorWhichPlayer->LapCounter;
+        int16_t lapsOverall = monitorWhichPlayer->RaceLaps - 1;
+
+        //The same is done in the original game code
+        if (!lapCnter) {
+            lapCnter = 1;
+        }
+
         //first built string
         //important! pad with 2 leading zeros!
-        sprintf(&lapNumStr[0], "%02d/%02d", monitorWhichPlayer->currLapNumber, monitorWhichPlayer->raceNumberLaps);
+        sprintf(&lapNumStr[0], "%02d/%02d", (int)(lapCnter), (int)(lapsOverall));
         mGame->mGameTexts->DrawGameNumberText(lapNumStr,
                                                mGame->mGameTexts->HudLaptimeNumberRed, mPosLapCount);
 
@@ -1165,7 +1173,9 @@ bool HUD::DoesHudShowPermanentGreenBigText() {
 void HUD::DrawHUD1(irr::f32 deltaTime) {
     switch (this->mHudState) {
         case DEF_HUD_STATE_STARTSIGNAL: {
-            DrawHUD1PlayerStartSignal(deltaTime);
+            //original line DrawHUD1PlayerStartSignal(deltaTime);
+            //TODO: Temporarily until HUD states are fixed again
+            DrawHUD1PlayerRace(deltaTime);
             break;
         }
 
@@ -1598,106 +1608,117 @@ void HUD::RenderTextBannerGraphics() {
 }
 
 void HUD::RenderPlayerLapTimes() {
-    //TODO: add back later
-    // //Notes about LapTime rendering in Hi-Octane
-    // //all laptimes are shown in the lower left corner of the HUD
-    // //Hi-Octane shows a maximum of 4 sets of lap time
-    // //the lowest line always shows the laptime and lap number of the current lap in red text
-    // //the highest line always shows the laptime and lap number where the player was fastest (minimum) in grey test
-    // //the two entries inbetween show the laptime and lap number of the two last laps (regardless of the actuall lap times); in red color
-    // //if there are less then 4 entries in the table Hi-Octane starts rendering from the lowest line (most Y coordinate) upwards
+    //Notes about LapTime rendering in Hi-Octane
+    //all laptimes are shown in the lower left corner of the HUD
+    //Hi-Octane shows a maximum of 4 sets of lap time
+    //the lowest line always shows the laptime and lap number of the current lap in red text
+    //the highest line always shows the laptime and lap number where the player was fastest (minimum) in grey test
+    //the two entries inbetween show the laptime and lap number of the two last laps (regardless of the actuall lap times); in red color
+    //if there are less then 4 entries in the table Hi-Octane starts rendering from the lowest line (most Y coordinate) upwards
 
-    // //what info to print when? some brainstorming...
-    // //amountFinishedLaps = 0, just print current lap info, can be print always
-    // //amountFinishedLaps = 1, if one lap is finished this lap is automatically fastest lap -> print current lap info and fastest lap info
-    // //amountFinishedLaps = 2, if two laps are finished, and the last lap is not the fastest lap -> print current lap info, last lap info, and fastest lap info
-    // //                        if two laps are finished, and the last lap is  the fastest lap -> print current lap info and fastest lap info
-    // //amountFinishedLaps = 3, if three laps are finished, and the last lap is not the fastest lap -> print current lap info, last lap info, and fastest lap info
-    // //                        if two laps are finished, and the last lap is  the fastest lap -> print current lap info and fastest lap info
+    //what info to print when? some brainstorming...
+    //amountFinishedLaps = 0, just print current lap info, can be print always
+    //amountFinishedLaps = 1, if one lap is finished this lap is automatically fastest lap -> print current lap info and fastest lap info
+    //amountFinishedLaps = 2, if two laps are finished, and the last lap is not the fastest lap -> print current lap info, last lap info, and fastest lap info
+    //                        if two laps are finished, and the last lap is  the fastest lap -> print current lap info and fastest lap info
+    //amountFinishedLaps = 3, if three laps are finished, and the last lap is not the fastest lap -> print current lap info, last lap info, and fastest lap info
+    //                        if two laps are finished, and the last lap is  the fastest lap -> print current lap info and fastest lap info
 
-    // irr::u32 posY = (mGame->mScreenRes.Height - 24);
-    // irr::u32 posX;
-    // irr::u32 txtWidth;
+    irr::u32 posY = (mGame->mScreenRes.Height - 24);
+    irr::u32 posX;
+    irr::u32 txtWidth;
 
-    // //1. render current lap number in the lowest line
-    // char text[20];
-    // sprintf(&text[0], "%2d.", this->monitorWhichPlayer->mPlayerStats->currLapNumber);
+    //1. render current lap number in the lowest line
+    int currLapNr = (int)(this->monitorWhichPlayer->LapCounter);
+    if (currLapNr < 1) {
+        currLapNr = 1;
+    }
 
-    // txtWidth = mGame->mGameTexts->GetWidthPixelsGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed);
-    // posX = 38 - txtWidth;
+    char text[20];
+    sprintf(&text[0], "%2d.", (int)(currLapNr));
 
-    // mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(posX, posY));
+    txtWidth = mGame->mGameTexts->GetWidthPixelsGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed);
+    posX = 38 - txtWidth;
 
-    // //2. render current lap time number in the lowest line
-    // // this text is written in a way that times are alignment on the right side
-    // //the length (width) of text to render afterwards
-    // sprintf(&text[0], "%4d", this->monitorWhichPlayer->mPlayerStats->currLapTimeMultiple40mSec);
+    mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(posX, posY));
 
-    // mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(56, posY));
+    //2. render current lap time number in the lowest line
+    // this text is written in a way that times are alignment on the right side
+    //the length (width) of text to render afterwards
+    sprintf(&text[0], "%4d", (int)(this->monitorWhichPlayer->LapTicks));
 
-    // //for the next line decrease Y coordinate
-    // posY -= 23;
+    mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(56, posY));
 
-    // irr::u8 amountFinishedLaps = (this->monitorWhichPlayer->mPlayerStats->currLapNumber - 1);
+    //for the next line decrease Y coordinate
+    posY -= 23;
 
-    // //first lets see if there is already a fastest lap number & lap time available
-    // //get this info
-    // irr::u8 fastestLapNr = 0;
-    // irr::u32 fastestLapNrLapTimeMultiple40ms;
+    int amountFinishedLaps = ((int)(currLapNr) - 1);
 
-    // if (amountFinishedLaps > 0) {
-    //     //because player lap time table is a sorted vector, fastest lap is always first entry
-    //     fastestLapNr = this->monitorWhichPlayer->mPlayerStats->lapTimeList[0].lapNr;
-    //     fastestLapNrLapTimeMultiple40ms = this->monitorWhichPlayer->mPlayerStats->lapTimeList[0].lapTimeMultiple40mSec;
-    // }
+    //first lets see if there is already a fastest lap number & lap time available
+    //get this info
+    int32_t fastestLapNr = 0;
+    int32_t fastestLapNrLapTimeMultiple40ms;
 
-    // //if available print information about last lap, also important: only print this lap here as long this is not the fastest lap!
-    // if ((this->monitorWhichPlayer->mPlayerStats->lastLap.lapNr != 0) && (this->monitorWhichPlayer->mPlayerStats->lastLap.lapNr != fastestLapNr)) {
-    //     sprintf(&text[0], "%2d.", this->monitorWhichPlayer->mPlayerStats->lastLap.lapNr);
+    int lastLapNr = 0;
+    int lapBeforeLastLapNr = 0;
 
-    //     txtWidth = mGame->mGameTexts->GetWidthPixelsGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed);
-    //     posX = 38 - txtWidth;
+    if (amountFinishedLaps > 0) {
+        fastestLapNr = this->monitorWhichPlayer->FastestLapNr;
+        fastestLapNrLapTimeMultiple40ms = this->monitorWhichPlayer->FastestLapTicks;
+        lastLapNr = (currLapNr - 1);
+    }
 
-    //     mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(posX, posY));
+    if (amountFinishedLaps > 1) {
+        lapBeforeLastLapNr = (lastLapNr - 1);
+    }
 
-    //     sprintf(&text[0], "%4d", this->monitorWhichPlayer->mPlayerStats->lastLap.lapTimeMultiple40mSec);
+    //if available print information about last lap, also important: only print this lap here as long this is not the fastest lap!
+    if ((lastLapNr != 0) && (lastLapNr != fastestLapNr)) {
+        sprintf(&text[0], "%2d.", lastLapNr);
 
-    //     mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(56, posY));
+        txtWidth = mGame->mGameTexts->GetWidthPixelsGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed);
+        posX = 38 - txtWidth;
 
-    //     //for the next line decrease Y coordinate
-    //     posY -= 23;
-    // }
+        mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(posX, posY));
 
-    // //if available print information about lap before last lap, also important: only print this lap here as long this is not the fastest lap!
-    // if ((this->monitorWhichPlayer->mPlayerStats->LapBeforeLastLap.lapNr != 0) && (this->monitorWhichPlayer->mPlayerStats->LapBeforeLastLap.lapNr != fastestLapNr)) {
-    //     sprintf(&text[0], "%2d.", this->monitorWhichPlayer->mPlayerStats->LapBeforeLastLap.lapNr);
+        sprintf(&text[0], "%4d", (int)(this->monitorWhichPlayer->LastLapTicks));
 
-    //     txtWidth = mGame->mGameTexts->GetWidthPixelsGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed);
-    //     posX = 38 - txtWidth;
+        mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(56, posY));
 
-    //     mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(posX, posY));
+        //for the next line decrease Y coordinate
+        posY -= 23;
+    }
 
-    //     sprintf(&text[0], "%4d", this->monitorWhichPlayer->mPlayerStats->LapBeforeLastLap.lapTimeMultiple40mSec);
+    //if available print information about lap before last lap, also important: only print this lap here as long this is not the fastest lap!
+    if ((lapBeforeLastLapNr != 0) && (lapBeforeLastLapNr != fastestLapNr)) {
+        sprintf(&text[0], "%2d.", lapBeforeLastLapNr);
 
-    //     mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(56, posY));
+        txtWidth = mGame->mGameTexts->GetWidthPixelsGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed);
+        posX = 38 - txtWidth;
 
-    //     //for the next line decrease Y coordinate
-    //     posY -= 23;
-    // }
+        mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(posX, posY));
 
-    // //now finally print currently fastest lap info with grey text
-    // if (fastestLapNr != 0) {
-    //     sprintf(&text[0], "%2d.", fastestLapNr);
+        sprintf(&text[0], "%4d", (int)(this->monitorWhichPlayer->Conditions.LapTimes[lapBeforeLastLapNr]));
 
-    //     txtWidth = mGame->mGameTexts->GetWidthPixelsGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberGrey);
-    //     posX = 38 - txtWidth;
+        mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberRed, irr::core::position2di(56, posY));
 
-    //     mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberGrey, irr::core::position2di(posX, posY));
+        //for the next line decrease Y coordinate
+        posY -= 23;
+    }
 
-    //     sprintf(&text[0], "%4d", fastestLapNrLapTimeMultiple40ms);
+    //now finally print currently fastest lap info with grey text
+    if (fastestLapNr != 0) {
+        sprintf(&text[0], "%2d.", (int)(fastestLapNr));
 
-    //     mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberGrey, irr::core::position2di(56, posY));
-    // }
+        txtWidth = mGame->mGameTexts->GetWidthPixelsGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberGrey);
+        posX = 38 - txtWidth;
+
+        mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberGrey, irr::core::position2di(posX, posY));
+
+        sprintf(&text[0], "%4d", (int)(fastestLapNrLapTimeMultiple40ms));
+
+        mGame->mGameTexts->DrawGameNumberText(&text[0], mGame->mGameTexts->HudLaptimeNumberGrey, irr::core::position2di(56, posY));
+    }
 }
 
 //if showDurationSec is negative a permanent banner text message is created instead of the

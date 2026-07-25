@@ -469,7 +469,7 @@ Player::Player(Race* race, std::string model, irr::core::vector3d<irr::f32> NewP
     mSmokeTrail = new SmokeTrail(mRace->mGame->mSmgr, mRace->mGame->mDriver, this, 20);
 
     //create my Dust cloud emitter particles system
-    mDustBelowCraft = new DustBelowCraft(mRace->mGame->mSmgr, mRace->mGame->mDriver, this, 100);
+   // mDustBelowCraft = new DustBelowCraft(mRace->mGame->mSmgr, mRace->mGame->mDriver, this, 100);
 
     //create my machinegun
     mMGun = new MachineGun(this, mRace->mGame->mSmgr, mRace->mGame->mDriver);
