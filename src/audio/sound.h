@@ -102,7 +102,7 @@
  * Forward declarations *
  ************************/
 
-class Player;
+class VVehicle;
 class Game;
 
 class SoundResource {
@@ -136,19 +136,19 @@ public:
   bool IsAnySoundPlaying();
   void StopAllSounds();
 
-  void StartEngineSoundForPlayer(Player* player);
-  void RequestEngineSoundForPlayer(Player* player);
-  void StopEngineSoundForPlayer(Player* player);
-  void StopEngineSoundForAllPlayers();
+  void StartEngineSoundForVehicle(VVehicle* vehicle);
+  void RequestEngineSoundForVehicle(VVehicle* vehicle);
+  void StopEngineSoundForVehicle(VVehicle* vehicle);
+  void StopEngineSoundForAllVehicles();
 
   //with directional sound effect, engine sound in this case has also a location
   //used for all the players that are not controlled by the human player
-  void SetPlayerSpeed(Player* player, float speed, float maxSpeed, irr::core::vector3df playerLocation, bool spatialSound = true);
+  void UpdateVehicleState(VVehicle* vehicle, float pitch, irr::core::vector3df vehicleLocation, bool spatialSound = true);
 
   //without directional sound effect, engine sound in this case has no location
   //is used by the human controller player craft, to not get weird sound effects of human
   //players engine sound (sound modulation vs. rotation of player craft etc...)
-  void SetPlayerSpeed(Player* player, float speed, float maxSpeed);
+  void UpdateVehicleState(VVehicle* vehicle, float pitch);
 
   bool GetIsSoundActive();
 
@@ -191,7 +191,7 @@ private:
 
   sf::Sound* engineSound = nullptr;
 
-  std::vector<std::pair<Player*, sf::Sound*>> mEngineSoundVector;
+  std::vector<std::pair<VVehicle*, sf::Sound*>> mEngineSoundVector;
 };
 
 #endif // SOUND_H

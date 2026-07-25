@@ -277,6 +277,13 @@ Race::Race(Game* parentGame, MyMusicStream* gameMusicPlayerParam,
     mChargingStationVec = new std::vector<ChargingStation*>;
     mChargingStationVec->clear();
 
+    mVanillaCheckpointVec.clear();
+    //we need to add a first dummy element
+    //to make the remaining code implementation work
+    ThingDataStruct* newDummy = new ThingDataStruct();
+    newDummy->Index = 0;
+    mVanillaCheckpointVec.push_back(newDummy);
+
     mCollectableSpawnerVec.clear();
 
     //my vector of player that need help
@@ -1304,65 +1311,6 @@ void Race::DamagePlayer(Player* targetToHit, irr::f32 damageVal, irr::u8 damageT
     }
 }
 
-//Stage 3 of player race ranking sorting: Sort by ascending remaining distance to next checkpoint
-void Race::UpdatePlayerRacePositionRankingHelper3(vector< pair <irr::f32, VVehicle*> > vecRemainingDistanceToNextCheckpoint) {
-
-    //sort vector pairs in descending value for remaining distance to next checkpoint
-   std::sort(vecRemainingDistanceToNextCheckpoint.rbegin(), vecRemainingDistanceToNextCheckpoint.rend());
-
-   //start with the last element in sorted vector (which is the player with the
-   //least remaining distance to next checkpoint
-   //this player is currently number one player
-   auto it4 = vecRemainingDistanceToNextCheckpoint.rbegin();
-
-   for (it4 = vecRemainingDistanceToNextCheckpoint.rbegin(); it4 != vecRemainingDistanceToNextCheckpoint.rend(); ++it4) {
-       playerRanking.push_back((*it4).second);
-   }
-}
-
-//Stage 2 of player race ranking sorting: Sort by ascending number of next expected checkpoint value
-void Race::UpdatePlayerRacePositionRankingHelper2(vector< pair <irr::s32, VVehicle*> > vecNextCheckPointExpected) {
-
-    //sort vector pairs in ascending value of next expected checkpoint
-    std::sort(vecNextCheckPointExpected.begin(), vecNextCheckPointExpected.end());
-
-    //start with the last element in sorted vector (which is the player with the highest value
-    //for next expected checkpoint)
-    auto it3 = vecNextCheckPointExpected.rbegin();
-
-    irr::s32 nextExpectedCheckPointValue;
-    VVehicle* playerPntr;
-
-    nextExpectedCheckPointValue = (it3)->first;
-    playerPntr = (it3)->second;
-
-    vector< pair <irr::f32, VVehicle*> > vecRemainingDistanceToNextCheckpoint;
-
-    for (it3 = vecNextCheckPointExpected.rbegin(); it3 != vecNextCheckPointExpected.rend(); ++it3) {
-
-        playerPntr = (it3)->second;
-
-        //does the next player have the same value for next expected checkpoint?
-        if ((*it3).first == nextExpectedCheckPointValue) {
-            //yes, add it to the next sorting list for remaining distance to next checkpoint
-            vecRemainingDistanceToNextCheckpoint.push_back( make_pair(playerPntr->remainingDistanceToNextCheckPoint, playerPntr));
-        } else {
-            //the next player has a different expected next checkpoint
-            //go to the next sorting stage
-            UpdatePlayerRacePositionRankingHelper3(vecRemainingDistanceToNextCheckpoint);
-
-            vecRemainingDistanceToNextCheckpoint.clear();
-            vecRemainingDistanceToNextCheckpoint.push_back( make_pair(playerPntr->remainingDistanceToNextCheckPoint, playerPntr));
-        }
-
-        nextExpectedCheckPointValue = (it3)->first;
-    }
-
-    if (vecRemainingDistanceToNextCheckpoint.size() > 0) {
-        UpdatePlayerRacePositionRankingHelper3(vecRemainingDistanceToNextCheckpoint);
-    }
-}
-
 //if the first player crosses the finish line after start
 //the race state changes to final Racing state
 void Race::PlayerCrossesFinishLineTheFirstTime() {
@@ -1371,14 +1319,14 @@ void Race::PlayerCrossesFinishLineTheFirstTime() {
     if (mCurrentPhase == DEF_RACE_PHASE_FIRSTWAYTOWARDSFINISHLINE) {
         mCurrentPhase = DEF_RACE_PHASE_RACING;
 
-        //also set the players to this new mode
-        //this internally enables the HUD drawing, and allows computer players to
-        //finally attack
-        std::vector<Player*>::iterator it;
+        // //also set the players to this new mode
+        // //this internally enables the HUD drawing, and allows computer players to
+        // //finally attack
+        // std::vector<Player*>::iterator it;
 
-        for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
-            (*it)->SetupToSkipStart();
-        }
+        // for (it = this->mPlayerVec.begin(); it != this->mPlayerVec.end(); ++it) {
+        //     (*it)->SetupToSkipStart();
+        // }
     }
 }
 
@@ -1458,10 +1406,10 @@ void Race::AddPlayer(bool humanPlayer, char* name, std::string player_model) {
     }
 
     //request new engine sound for new player
-    //TODO this->mSoundEngine->RequestEngineSoundForPlayer(newPlayer);
+    this->mSoundEngine->RequestEngineSoundForVehicle(newPlayer);
 
     //start engine sound for new player
-    //TODO this->mSoundEngine->StartEngineSoundForPlayer(newPlayer);
+    this->mSoundEngine->StartEngineSoundForVehicle(newPlayer);
 }
 
 void Race::SetupPhysicsObjectParameters(PhysicsObject &phyObj, bool humanPlayer) {
@@ -1487,215 +1435,11 @@ void Race::SetupPhysicsObjectParameters(PhysicsObject &phyObj, bool humanPlayer)
     }
 }
 
-//Ranks the active players in order of their race progress
-//Number laps finished // next expected checkpoint number // remaining distance to next checkpoint
-void Race::UpdatePlayerRacePositionRanking() {
-    //first put the players with the highest amount
-    //of finished laps at the top, with decreasing sorting order
-
-    playerRanking.clear();
-
-    std::vector<VVehicle*>::iterator it;
-
-    /****************************************************
-     * Stage 1: Sort players by number of laps finished
-     *  Important: only look at players that have not
-     *  yet finished the race
-     ****************************************************/
-
-    //declaring vector of pairs containing number laps finished
-    //and pointer to player
-    vector< pair <irr::s32, VVehicle*> > vecLapsFinished;
-
-    for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
-        if (!(*it)->mHasFinishedRace) {
-          vecLapsFinished.push_back( make_pair((*it)->currLapNumber, (*it)));
-        }
-    }
-
-    //if all players are finished, just exit
-   if (vecLapsFinished.size() < 1)
-       return;
-
-    //sort vector pairs in ascending current lap number
-   std::sort(vecLapsFinished.begin(), vecLapsFinished.end());
-
-   //start with player with highest lap number
-   auto it2 = vecLapsFinished.rbegin();
-
-   irr::s32 currLapNr;
-   vector< pair <irr::s32, VVehicle*> > vecNextCheckPointExpected;
-   VVehicle* playerPntr;
-
-   currLapNr = (it2)->first;
-   playerPntr = (it2)->second;
-   int nextCheckPointValueHelper;
-
-   for (it2 = vecLapsFinished.rbegin(); it2 != vecLapsFinished.rend(); ++it2) {
-
-       playerPntr = (it2)->second;
-
-       //is the next player in the same current lap number?
-       if ((*it2).first == currLapNr) {
-          //yes, add it to the next sorting list for next expected check point
-          //18.01.2025: we need to keep something in mind to not get wrong results:
-          //nextCheckPointValue inside player rolls over at the end of the lap in front of the
-          //finish line back to 0, and start counting upwards again; That means during the race (after finish
-          //line was first passed by the player, the value 0 for nextCheckPointValue means actually more progress
-          //for the player then the highest possible check point value for this race track. If the player has passed
-          //the finish line already or not, is stored in player variable lastCrossedCheckPointValue
-          nextCheckPointValueHelper = playerPntr->nextCheckPointValue;
-
-          //is the next expected checkpoint 0?
-          if (nextCheckPointValueHelper == 0) {
-              //has the player already at least one time crossed the finish line?
-              if (playerPntr->lastCrossedCheckPointValue != 0) {
-                  //yes, player crossed finish line at least once
-                  //this means a next checkpoint value of 0 means actually more race progress then
-                  //all higher numbers, fix nextCheckPointValue for the race progress sorting but just setting
-                  //the number of next expected checkpoint higher
-                  nextCheckPointValueHelper = (int)(this->checkPointVec->size());
-              }
-          }
-
-          vecNextCheckPointExpected.push_back( make_pair(nextCheckPointValueHelper, playerPntr));
-       } else {
-           //the next player has not so much laps done yet
-           //go to the next sorting stage
-            UpdatePlayerRacePositionRankingHelper2(vecNextCheckPointExpected);
-
-            vecNextCheckPointExpected.clear();
-
-            nextCheckPointValueHelper = playerPntr->nextCheckPointValue;
-
-            //is the next expected checkpoint 0?
-            if (nextCheckPointValueHelper == 0) {
-                //has the player already at least one time crossed the finish line?
-                if (playerPntr->lastCrossedCheckPointValue != 0) {
-                    //yes, player crossed finish line at least once
-                    //this means a next checkpoint value of 0 means actually more race progress then
-                    //all higher numbers, fix nextCheckPointValue for the race progress sorting but just setting
-                    //the number of next expected checkpoint higher
-                    nextCheckPointValueHelper = (int)(this->checkPointVec->size());
-                }
-            }
-
-            vecNextCheckPointExpected.push_back( make_pair(nextCheckPointValueHelper, playerPntr));
-       }
-
-       currLapNr = (it2)->first;
-   }
-
-   if (vecNextCheckPointExpected.size() > 0) {
-       UpdatePlayerRacePositionRankingHelper2(vecNextCheckPointExpected);
-   }
-
-   //what is the current overall position the players
-   //are still racing for?
-   int currPos = (int)(playerRaceFinishedVec.size()) + 1;
-
-   int numPlayers = (int)(mVanillaCraftVec.size());
-
-   //all player rankings are done and stored in this->playerRanking
-   //Update player objects with this new ranking information
-   for (it = this->playerRanking.begin(); it != this->playerRanking.end(); ++it) {
-       (*it)->currRacePlayerPos = currPos;
-       (*it)->overallPlayerNumber = numPlayers;
-       currPos++;
-   }
-}
-
 void Race::DebugResetColorAllWayPointLinksToWhite() {
     std::vector<WayPointLinkInfoStruct*>::iterator it;
 
     for (it = this->wayPointLinkVec->begin(); it != this->wayPointLinkVec->end(); ++it) {
         (*it)->pLineStruct->color = mGame->mDrawDebug->white;
-    }
-}
-
-void Race::UpdatePlayerDistanceToNextCheckpoint(VVehicle* whichPlayer) {
-    irr::f32 sumDistance = 0.0f;
-    WayPointLinkInfoStruct* currLink;
-    irr::f32 len;
-    irr::f32 partLen;
-    CheckPointInfoStruct* pntrChkPoint;
-
-    //only for debugging!
-    //DebugResetColorAllWayPointLinksToWhite();
-
-    //start at current waypoint link closest to current player
-    //then follow this link forward until we hit the next checkpoint
-    //create sum of all distances
-    if (whichPlayer->currClosestWayPointLink.first != nullptr) {
-        //we have currently a closest waypoint link for this player
-        currLink = whichPlayer->currClosestWayPointLink.first;
-
-        //The next line is for debugging
-        //currLink->pLineStruct->color = mDrawDebug->green;
-
-        //calculate length of vector from current 3D Player projected position on waypoint line to start of line
-        len = (whichPlayer->projPlayerPositionClosestWayPointLink - currLink->pLineStruct->A).getLength();
-
-        //first part of the distance is the part from player position
-        //on current waypoint link to end of this waypoint link
-        partLen = currLink->length3D - len;
-
-        if (partLen < 0.0f)
-            partLen = 0.0f;
-
-        sumDistance += partLen;
-
-        //already a checkpoint at the end of this waypoint link which we are currently
-        //in, and we are distance wise before the expected waypoint?
-        //if we are progress wise already after the checkpoint location, continue search for next
-        //checkpoint
-        if ((currLink->pntrCheckPoint != nullptr) && (len < currLink->distanceStartLinkToCheckpoint)) {
-            //yes, exit here
-            whichPlayer->remainingDistanceToNextCheckPoint = sumDistance;
-
-            return;
-        }
-
-        //sometimes the checkpoint is placed in the level maps exactly at a waypoint, so at the end I get
-        //two waypoint links one after another with a pointer to the same checkpoint; This would through the distance
-        //calculation of. To fix this issue we need to continue following waypoint links until we first find a "gap" of
-        //waypoint links without any checkpoint there. Only after the we can be sure that we found the next (different)
-        //waypoint
-
-        pntrChkPoint = currLink->pntrCheckPoint;
-        bool cont = true;
-
-        //we need to look at the next following waypoint link
-        currLink = currLink->pntrPathNextLink;
-
-        //now follow the waypoint l whichPlayer->mLeave = 1;inks forward until we hit the next (but different) checkpoint
-        while (cont) {  //follow one link after another until we hit the next checkpoint
-            if (currLink != nullptr) {
-                if (currLink->pntrCheckPoint == nullptr) {
-                    //The next line is for debugging
-                    //currLink->pLineStruct->color = mDrawDebug->blue;
-
-                    //for this links add up the whole length
-                    sumDistance += currLink->length3D;
-                } else {
-                    //there is a (different then the last) checkpoint within this waypoint link
-                    //for this one add only the distance from the start point until the checkpoint location
-                    sumDistance += currLink->distanceStartLinkToCheckpoint;
-                    pntrChkPoint = currLink->pntrCheckPoint;
-
-                    //currLink->pLineStruct->color = mDrawDebug->red;
-                    cont = false;
-                }
-            } else {
-                cont = false;
-            }
-
-               currLink = currLink->pntrPathNextLink;
-        }
-
-        //set currently remaining distance from player location to next checkpoint
-        //into the player object
-        whichPlayer->remainingDistanceToNextCheckPoint = sumDistance;
     }
 }
 
@@ -1961,7 +1705,9 @@ void Race::Init() {
     //for debugging vanilla stuff
     mVDbgInterface = new DbgInterface();
 
-    this->mVCalc->Verify_vanilla_calculations();
+    //Next line is for verification of some vanilla
+    //calculation, uncomment if needed
+    //this->mVCalc->Verify_vanilla_calculations();
 
     mVCamera = new VCamera(this);
 
@@ -2179,6 +1925,14 @@ void Race::UpdateLensFlare() {
 
 void Race::AdvanceTime(irr::f32 frameDeltaTime) {
 
+    mVanillaGameLoopTimer += frameDeltaTime;
+    //The game loop of the vanilla game at Playstation 1
+    //seems to run approx. every 65ms
+    if (mVanillaGameLoopTimer >= 0.065f) {
+        mVanillaGameLoopTimer = 0.0f;
+        vehicle_race_positions();
+    }
+
     //are we in Race start phase, if so also call
     //race start control function
     if (mCurrentPhase == DEF_RACE_PHASE_START) {
@@ -2246,8 +2000,7 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     std::vector<VVehicle*>::iterator itPlayer;
 
     for (itPlayer = mVanillaCraftVec.begin(); itPlayer != mVanillaCraftVec.end(); ++itPlayer) {
-       CheckPlayerCrossedCheckPoint((*itPlayer));
-       CheckPlayerCollidedCollectible(*itPlayer);
+           CheckPlayerCollidedCollectible(*itPlayer);
    }
 
     //reset variable mOtherPlayerHasMissleLockAtMe for all players
@@ -2308,12 +2061,12 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
         (*itPlayer)->SetCurrClosestWayPointLink(mPath->PlayerDeriveClosestWaypointLink((*itPlayer)->currCloseWayPointLinks));
     }
 
-    for (itPlayer = mVanillaCraftVec.begin(); itPlayer != mVanillaCraftVec.end(); ++itPlayer) {
-        UpdatePlayerDistanceToNextCheckpoint(*itPlayer);
-    }
+    // for (itPlayer = mVanillaCraftVec.begin(); itPlayer != mVanillaCraftVec.end(); ++itPlayer) {
+    //     UpdatePlayerDistanceToNextCheckpoint(*itPlayer);
+    // }
 
-    //update player race position ranking
-    UpdatePlayerRacePositionRanking();
+    // //update player race position ranking
+    // UpdatePlayerRacePositionRanking();
 /*
     //update recovery vehicle logic
     UpdateRecoveryVehicles(frameDeltaTime);
@@ -2488,39 +2241,6 @@ void Race::ProcessPendingTriggers() {
     }
 }
 
-void Race::CheckPlayerCrossedCheckPoint(VVehicle* whichPlayer) {
-
-    std::vector<CheckPointInfoStruct*>::iterator it;
-
-    for (it = this->checkPointVec->begin(); it != this->checkPointVec->end(); ++it) {
-        if (whichPlayer->mBoundingBox.intersectsWithBox((*it)->checkPointBox)) {
-
-            //player crosses waypoint, figure out if player crosses waypoint in the normal
-            //race direction, if not ignore event
-            irr::core::vector3df velNormalized = whichPlayer->IrrWorldDirVecForward;
-
-            //if the player crosses checkPoint in normal RaceDirection
-            //the dotProduct should be positive
-            irr::f32 dotProduct = velNormalized.dotProduct((*it)->RaceDirectionVec);
-
-            if (dotProduct > 0.0f) {
-                //next lines only for debugging of checkpoint functionality
-                //TODO: The char below produces a memory leak! bug for debugging the value is helpful!
-                //char *txt = new char[20];
-                //char nrtxt[4];
-                //strcpy(txt, "CHECKPOINT ");
-                //sprintf(nrtxt, "%d", (*it)->value);
-                //strcat(txt, nrtxt);
-
-                //player->GetMyHUD()->ShowBannerText(&txt[0], 0.2f);
-
-                //tell player object about crossed checkpoint
-                whichPlayer->CrossedCheckPoint((*it)->value, (irr::s32)(checkPointVec->size()));
-            }
-        }
-    }
-}
-
 void Race::UpdateParticleSystems(irr::f32 frameDeltaTime) {
     //update all steam fontains
     std::vector <SteamFountain*>::iterator it;
@@ -2686,7 +2406,8 @@ void Race::HandleDebugInput() {
 
    if(mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_C)) {
        //toggle collision resolution active state
-       mPhysics->collisionResolutionActive = !mPhysics->collisionResolutionActive;
+       //mPhysics->collisionResolutionActive = !mPhysics->collisionResolutionActive;
+      // mVanillaCraftVec.at(0)->Stats.Health = 0;
    }
 
    if ((mCloneRecording != nullptr) && DebugShowCloneRecording) {
@@ -3632,7 +3353,7 @@ bool Race::SetupSky() {
     return true;
 }
 
-void Race::InitialUpdateCollectablePositions() {
+void Race::InitialUpdateEntityPositions() {
     std::vector<Collectable*>::iterator it;
 
     irr::core::vector3df irrCoord;
@@ -3647,6 +3368,17 @@ void Race::InitialUpdateCollectablePositions() {
 
             (*it)->UpdatePosition(irrCoord);
         }
+    }
+
+    //do the same for the vanilla checkpoints
+    std::vector<ThingDataStruct*>::iterator it2;
+
+    for (it2 = mVanillaCheckpointVec.begin() + 1; it2 != mVanillaCheckpointVec.end(); ++it2) {
+            //the position in this struct is already
+            //stored in the vanilla "coordinate" system
+            vanCoord = (*it2)->Position;
+            vanCoord.Z = mVCalc->map_altitude_lowest(vanCoord);
+            (*it2)->Position = vanCoord;
     }
 }
 
@@ -3773,8 +3505,8 @@ bool Race::LoadLevel() {
    }
 
    //After the level geometry data is available
-   //update Collectable heights one more time
-   InitialUpdateCollectablePositions();
+   //update Collectable and checkpoint heights one more time
+   InitialUpdateEntityPositions();
 
    if (mGame->mUseXEffects) {
        // Add the terrain SceneNodes to the shadow node list, using the chosen filtertype.
@@ -3942,6 +3674,227 @@ void Race::AddCheckPoint(EntityItem entity) {
 
     //all created, add Checkpoint to our list
     this->checkPointVec->push_back(newStruct);
+
+    //Also at the same time add vanilla representation of checkbox
+    ThingDataStruct* newThingStruct = new ThingDataStruct();
+    newThingStruct->Count = entity.getValue();
+    newThingStruct->CollideSize = entity.DecodeCollideSize();
+
+    irr::core::vector3df irrPosEntity = entity.getCenter();
+    irr::core::vector3df vanPosEntity = mVCalc->IrrlichtToVanillaCoord(irrPosEntity);
+    vanPosEntity.Z = 0.0f; //the game has at this point of time no height information
+    newThingStruct->Position = vanPosEntity + newThingStruct->CollideSize;
+    newThingStruct->Displacement.set(0.0f, 0.0f, 0.0f);
+
+    //here we start with index 1, because when we initialized the mVanillaCheckpointVec
+    //vector we first added a dummy element;
+    newThingStruct->Index = mVanillaCheckpointVec.size();
+
+    mVanillaCheckpointVec.push_back(newThingStruct);
+}
+
+//if vehicle in the second parameter is further in the race this function
+//returns 1, otherwise 0
+uint8_t Race::vehicle_race_positions_compare(VVehicle* vehicle1, VVehicle* vehicle2) {
+    uint8_t result;
+
+    int16_t v3;
+    int16_t v5;
+    int16_t v8;
+    int16_t count;
+    bool v10;
+
+    v3 = vehicle1->LapCounter;
+    v5 = vehicle2->LapCounter;
+
+    if (v3 < v5) {
+       return 1;
+    }
+
+    result = 0;
+
+    if (v3 == v5) {
+        //the next lines were modified by me to work
+        //with my modified checkpoint system compared to
+        //the original game, but the purpose is similar
+        if (!vehicle1->CheckPoint) {
+            v8 = 16000;
+        } else {
+            v8 = mVanillaCheckpointVec.at(vehicle1->CheckPoint)->Count;
+        }
+
+        if (!vehicle2->CheckPoint) {
+            count = 16000;
+        } else {
+            count = mVanillaCheckpointVec.at(vehicle2->CheckPoint)->Count;
+        }
+
+        v10 = (v8 < count);
+        if (v10) {
+            return 1;
+        }
+
+        result = 0;
+        if (v8 == count) {
+            result = 0;
+            if (vehicle2->DistanceToNextCheckpoint < vehicle1->DistanceToNextCheckpoint) {
+                return 1;
+            }
+        }
+    }
+
+    return result;
+}
+
+void Race::vehicle_race_positions() {
+  uint8_t v1 = 0;
+  int32_t v7;
+  int32_t v9;
+  int32_t v14 = 0;
+  int32_t v17;
+  int32_t v18;
+  int32_t v19;
+  int32_t v20;
+  int32_t v26;
+  int32_t v28;
+  VVehicle* v30[12];
+
+  for (size_t idx = 0; idx < 12; idx++) {
+      v30[idx] = nullptr;
+  }
+
+  std::vector<VVehicle*>::iterator it;
+
+  //First find out if at least one player has started the first lap?
+  for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
+      if (((*it)->ControlStatus & 1) != 0) {
+          if ((*it)->LapCounter) {
+              v1 = 1;
+              //I believe this flag is used to indicate that the player
+              //has started the first lap, and therefore the HUD
+              //is now shown
+              (*it)->ThingData.Status |= 0x800u;
+              PlayerCrossesFinishLineTheFirstTime();
+          }
+      }
+  }
+
+  //at least one player has started the first lap?
+  if (v1) {
+      //yes, now set this flag for all players in the race
+      //so that HUD is shown for all of them
+      for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
+         if (((*it)->ControlStatus & 1) != 0) {
+              //Player has not yet started the first lap?
+              if (!(*it)->LapCounter) {
+                  //first lap not started yet, set flag also for this player
+                  (*it)->ThingData.Status |= 0x800u;
+              }
+         }
+      }
+  }
+
+  v7 = 0;  //Counts the number of vehicles that have finished the race,
+           //and which spectator time counter has expired; number of cars that
+           //want to exit the race completely
+  v9 = 0;  //Counts the number of overall vehicles in the race (independent if finished or not)
+
+  for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
+      if (((*it)->ControlStatus & 1) != 0) {
+          v9++;
+          //RacePositionFinish is set to value unequal zero
+          //if this vehicle has already finished the race
+          if ((*it)->RacePositionFinish) {
+              //RacePositionFinishShowTime is set unequal zero if vehicle finished
+              //the race, and seems to be decremented over time. I believe this is a
+              //counter that allows the player to see a little bit more of the race
+              //after finishing
+              if (!((*it)->Conditions.RacePositionFinishShowTime)) {
+                  //The "spectator" mode timer/counter has expired
+                  //one more vehicle want to exit the race
+                  ++v7;
+              }
+          }
+      }
+  }
+
+  //all vehicles have finished the race and their spectactor timer
+  //expired, so the all want to exit the race?
+  if (v9 == v7) {
+      for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
+          if (((*it)->ControlStatus & 1) != 0) {
+              //mark the vehicle that it wants to exit the race
+              (*it)->ThingData.Status |= 0x1000u;
+          }
+      }
+  }
+
+  for (it = mVanillaCraftVec.begin(); it != mVanillaCraftVec.end(); ++it) {
+      if (((*it)->ControlStatus & 1) != 0) {
+         //keep a pointer to this player/craft
+         v30[v14] = (*it);
+         ++v14;
+         if ((*it)->RacePositionFinish) {
+            //The player finished the race. Does he still have time left
+            //too see more of the remaining race as a spectator?
+            if ((*it)->Conditions.RacePositionFinishShowTime) {
+               (*it)->CurrentWaypoint = mVTrack->track_waypoint_nearest((*it)->ThingData.Position);
+               (*it)->vehicle_set_autopilot_on();
+               (*it)->vehicle_set_autodrive_on();
+               //Decrement counter/timer for remaining spectator time
+               --((*it)->Conditions.RacePositionFinishShowTime);
+            }
+          }
+       }
+  }
+
+  VVehicle* hlpPntr;
+
+  //If there are at least two players
+  //in the race we need to find out the current
+  //race positions
+  if (v14 >= 2) {
+      v17 = v14 - 1;
+      do {
+          v18 = 0;
+          v19 = 0;
+          if (v17 > 0)
+          {
+              v20 = 0;
+              //in this loop lets sort the players in a way that the
+              //player which is leading the race is at the lowest index of the v30 array,
+              //if a player is further back in the race lets move him to higher indices in the
+              //array step by step
+              do {
+                  ++v18;
+                  //if vehicle in the second parameter is leading in the race compared
+                  //with the vehicle in the first parameter this function
+                  //returns 1, otherwise 0
+                  if (vehicle_race_positions_compare(v30[v20], v30[v20+1])) {
+                      v19 = 1;
+
+                      //we need to swap the two vehicles in v30 array
+                      hlpPntr = v30[v20];
+                      v30[v20] = v30[v20+1];
+                      v30[v20+1] = hlpPntr;
+                  }
+
+                  v20 = v18;
+              } while (v18 < v17);
+          }
+      } while (v19 == 1);
+  }
+
+  v26 = v14 - 1;
+  if (v26 >= 0) {
+      hlpPntr = v30[v26];
+      do {
+          v28 = v26-- + 1;
+          hlpPntr->RacePosition = (int16_t)(v28);
+          hlpPntr->RacePlayerCount = (int16_t)(v14);
+          hlpPntr = v30[v26];
+      } while (v26 >= 0);
+  }
 }
 
 //is called in the destructor to free all checkpoint
@@ -3972,6 +3925,21 @@ void Race::CleanUpAllCheckpoints() {
 
     //free also the vector itself
     delete checkPointVec;
+
+    //also cleanup all vanilla checkpoint structs
+    std::vector<ThingDataStruct*>::iterator it2;
+    ThingDataStruct* pntr2;
+
+    if (this->mVanillaCheckpointVec.size() > 0) {
+        for (it2 = this->mVanillaCheckpointVec.begin(); it2 != this->mVanillaCheckpointVec.end(); ) {
+           pntr2 = (*it2);
+
+           it2 = this->mVanillaCheckpointVec.erase(it2);
+
+           //delete the struct itself
+           delete pntr2;
+        }
+    }
 }
 
 void Race::CleanUpWayPointLinks(std::vector<WayPointLinkInfoStruct*> &vec) {

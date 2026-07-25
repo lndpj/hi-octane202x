@@ -58,7 +58,7 @@ void SoundEngine::StopAllSounds() {
         }
     }
 
-    StopEngineSoundForAllPlayers();
+    StopEngineSoundForAllVehicles();
 }
 
 bool SoundEngine::IsAnySoundPlaying() {
@@ -73,8 +73,8 @@ bool SoundEngine::IsAnySoundPlaying() {
         }
 
     //is any engine sound playing?
-    //which players engine sound needs to be updated?
-    std::vector<std::pair<Player*, sf::Sound*>>::iterator it;
+    //which vehicles engine sound needs to be updated?
+    std::vector<std::pair<VVehicle*, sf::Sound*>>::iterator it;
 
     for (it = this->mEngineSoundVector.begin(); it != this->mEngineSoundVector.end(); ++it) {
         if ((*it).second != nullptr) {
@@ -86,7 +86,7 @@ bool SoundEngine::IsAnySoundPlaying() {
    return false;
 }
 
-void SoundEngine::RequestEngineSoundForPlayer(Player* player) {
+void SoundEngine::RequestEngineSoundForVehicle(VVehicle* vehicle) {
     SoundResource* res = SearchSndRes(SRES_GAME_LARGECAR);
     if ((res != nullptr) && (res->loadOk))
 	{
@@ -99,18 +99,18 @@ void SoundEngine::RequestEngineSoundForPlayer(Player* player) {
 			//make sound source location absolute to listener
 			newEngineSound->setRelativeToListener(false);
 
-			this->mEngineSoundVector.push_back(std::make_pair(player, newEngineSound));
+            this->mEngineSoundVector.push_back(std::make_pair(vehicle, newEngineSound));
 		}
 	}
 }
 
-void SoundEngine::StartEngineSoundForPlayer(Player* player) {
-    //which players engine sound needs to be updated?
-    std::vector<std::pair<Player*, sf::Sound*>>::iterator it;
+void SoundEngine::StartEngineSoundForVehicle(VVehicle* vehicle) {
+    //which vehicles engine sound needs to be updated?
+    std::vector<std::pair<VVehicle*, sf::Sound*>>::iterator it;
 
     for (it = this->mEngineSoundVector.begin(); it != this->mEngineSoundVector.end(); ++it) {
-        if ((*it).first == player) {
-            //correct player found
+        if ((*it).first == vehicle) {
+            //correct vehicle found
 
             if (mSoundVolume > 1.0f) {
                 (*it).second->play();
@@ -122,20 +122,20 @@ void SoundEngine::StartEngineSoundForPlayer(Player* player) {
 }
 
 //with directional sound effect, engine sound in this case has also a location
-//used for all the players that are not controlled by the human player
-void SoundEngine::SetPlayerSpeed(Player* player, float speed, float maxSpeed, const irr::core::vector3df playerLocation, bool spatialSound) {
-    //which players engine sound needs to be updated?
-    std::vector<std::pair<Player*, sf::Sound*>>::iterator it;
+//used for all the vehicles that are not controlled by the human player
+void SoundEngine::UpdateVehicleState(VVehicle* vehicle, float pitch, const irr::core::vector3df vehicleLocation, bool spatialSound) {
+    //which vehicles engine sound needs to be updated?
+    std::vector<std::pair<VVehicle*, sf::Sound*>>::iterator it;
 
     for (it = this->mEngineSoundVector.begin(); it != this->mEngineSoundVector.end(); ++it) {
-        if ((*it).first == player) {
-            //correct player found
+        if ((*it).first == vehicle) {
+            //correct vehicle found
             //update values for engine sound
 
-            (*it).second->setPitch(float(0.6) + (speed/maxSpeed) * float(0.8));
+            (*it).second->setPitch(pitch);
 
             //update sound source position
-            (*it).second->setPosition(reinterpret_cast<const sf::Vector3f&>(playerLocation));
+            (*it).second->setPosition(reinterpret_cast<const sf::Vector3f&>(vehicleLocation));
 
             if (!spatialSound) {
                 (*it).second->setAttenuation(0.0f);
@@ -154,13 +154,13 @@ void SoundEngine::SetPlayerSpeed(Player* player, float speed, float maxSpeed, co
 //without directional sound effect, engine sound in this case has no location
 //is used by the human controller player craft, to not get weird sound effects of human
 //players engine sound (sound modulation vs. rotation of player craft etc...)
-void SoundEngine::SetPlayerSpeed(Player* player, float speed, float maxSpeed) {
-    SetPlayerSpeed(player, speed, maxSpeed, *this->mNonLocalizedSoundPos, false);
+void SoundEngine::UpdateVehicleState(VVehicle* vehicle, float pitch) {
+    UpdateVehicleState(vehicle, pitch, *this->mNonLocalizedSoundPos, false);
 }
 
-void SoundEngine::StopEngineSoundForAllPlayers() {
-    //which players engine sound needs to be updated?
-    std::vector<std::pair<Player*, sf::Sound*>>::iterator it;
+void SoundEngine::StopEngineSoundForAllVehicles() {
+    //which vehicles engine sound needs to be updated?
+    std::vector<std::pair<VVehicle*, sf::Sound*>>::iterator it;
 
     for (it = this->mEngineSoundVector.begin(); it != this->mEngineSoundVector.end(); ++it) {
             if ((*it).second != nullptr) {
@@ -169,13 +169,13 @@ void SoundEngine::StopEngineSoundForAllPlayers() {
     }
 }
 
-void SoundEngine::StopEngineSoundForPlayer(Player* player) {
-    //which players engine sound needs to be updated?
-    std::vector<std::pair<Player*, sf::Sound*>>::iterator it;
+void SoundEngine::StopEngineSoundForVehicle(VVehicle* vehicle) {
+    //which vehicles engine sound needs to be updated?
+    std::vector<std::pair<VVehicle*, sf::Sound*>>::iterator it;
 
     for (it = this->mEngineSoundVector.begin(); it != this->mEngineSoundVector.end(); ++it) {
-        if ((*it).first == player) {
-            //correct player found
+        if ((*it).first == vehicle) {
+            //correct vehicle found
 
             if ((*it).second != nullptr) {
                 (*it).second->stop();
@@ -267,13 +267,13 @@ void SoundEngine::SetVolume(float soundVolume) {
     if (soundVolume < 1.0f) {
         mSoundVolume = 0.0f;
         mPlaySound = false;
-        StopEngineSoundForAllPlayers();
+        StopEngineSoundForAllVehicles();
     } else {
         mPlaySound = true;
         mSoundVolume = soundVolume;
 
         //which players engine sound needs to be updated?
-        std::vector<std::pair<Player*, sf::Sound*>>::iterator it;
+        std::vector<std::pair<VVehicle*, sf::Sound*>>::iterator it;
 
         for (it = this->mEngineSoundVector.begin(); it != this->mEngineSoundVector.end(); ++it) {
             if ((*it).second != nullptr) {
@@ -494,7 +494,7 @@ SoundEngine::~SoundEngine() {
     StopAllSounds();
 
     //stop engine sound as well
-    StopEngineSoundForAllPlayers();
+    StopEngineSoundForAllVehicles();
 
     //delete all available sound resource
     DeleteSoundResource(SRES_MENUE_TYPEWRITEREFFECT1);

@@ -12,6 +12,7 @@
 #include "../resources/texture.h"
 #include "../race.h"
 #include "spriteparticle.h"
+#include "../vanilla/vvehicle.h"
 
  //***************************************************
 //*   SmokeParticle / SmokeTrail class              *
@@ -251,7 +252,7 @@ bool DustParticle::Update(irr::f32 frameDeltaTime, irr::core::vector3df newStart
 DustParticle::~DustParticle() {
 }
 
-DustBelowCraft::DustBelowCraft(irr::scene::ISceneManager* smgr, irr::video::IVideoDriver* driver, Player* parentPlayer,
+DustBelowCraft::DustBelowCraft(irr::scene::ISceneManager* smgr, irr::video::IVideoDriver* driver, VVehicle* parentPlayer,
                              irr::u32 nrMaxParticles) {
     mSmgr = smgr;
     mDriver = driver;
@@ -384,7 +385,7 @@ void DustBelowCraft::Update(irr::f32 frameDeltaTime) {
                       } else {
                            //nothing available anymore, create a new particle
                            DustParticle* newParticle = new DustParticle(mSmgr, mDustTex,
-                                     this->mParentPlayer->WorldCraftDustPnt, DEF_DUSTPARTICLELIFETIME,
+                                     this->mParentPlayer->IrrCoordGetDustEmitterPosition(), DEF_DUSTPARTICLELIFETIME,
                                                                        irr::core::dimension2d<irr::f32>(0.3f, 0.3f), irr::core::dimension2d<irr::f32>(0.4f, 0.4f));
 
                            //setup new particle velocities
@@ -403,7 +404,7 @@ void DustBelowCraft::Update(irr::f32 frameDeltaTime) {
           //update all currently existing particles
           for (it = mCurrSpriteVec->begin(); it != mCurrSpriteVec->end(); ++it) {
               if (!(*it)->Update(absTimeSinceLastUpdate,
-                            this->mParentPlayer->WorldCraftDustPnt)) {
+                            this->mParentPlayer->IrrCoordGetDustEmitterPosition())) {
                   //current particle stopped to exist (no lifetime anymore)
                   (*it)->HideParticle();
                   if (mCurrNrParticels > 0) {

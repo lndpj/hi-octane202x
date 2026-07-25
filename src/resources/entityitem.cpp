@@ -269,6 +269,16 @@ float EntityItem::decodeOffsetY() {
    return(result);
 }
 
+irr::core::vector3df EntityItem::DecodeCollideSize() {
+   irr::core::vector3df collideSize;
+
+   collideSize.X = (float)(((this->m_Bytes.at(20) + this->m_Bytes.at(21) * 256) + 1)) * 0.5f;
+   collideSize.Y = (float)(((this->m_Bytes.at(22) + this->m_Bytes.at(23) * 256) + 1)) * 0.5f;
+   collideSize.Z = 0.0f;
+
+   return collideSize;
+}
+
 float EntityItem::getX() {
     float result = ((float(this->m_Bytes.at(16)) / float(256)) + float(this->m_Bytes.at(17))) + DEF_SEGMENTSIZE * 0.5f;
     return(result);
