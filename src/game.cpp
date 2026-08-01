@@ -330,7 +330,7 @@ void Game::SetupDebugGame() {
     mGameAssets->SetNewMainPlayerSelectedCraft(0);
 
     //add computer players?
-    mGameAssets->SetComputerPlayersEnabled(false);
+    mGameAssets->SetComputerPlayersEnabled(true);
 
     mDbgUnlocked = true;
     mGameState = DEF_GAMESTATE_INITRACE;
@@ -1246,7 +1246,7 @@ void Game::GameLoopRace(irr::f32 frameDeltaTime) {
                     );*/
 
             swprintf(text2, 390, L"");
-           //swprintf(text2, 390, L"%d", (int)(mCurrentRace->mVanillaCraftVec.at(0)->RaceLaps));
+          // swprintf(text2, 390, L"%d", (int)(mCurrentRace->mVanillaCraftVec.at(1)->Stats.Invincable));
 
          /*  swprintf(text2, 390, L"Increment.SpeedActual: %lf \nIncrementAdd.SpeedActual: %lf \nIncrementLimit.SpeedActual: %lf\nStat.Velocity: %lf", this->mCurrentRace->mVCraft->Increment.SpeedActual,
                     this->mCurrentRace->mVCraft->IncrementAdd.SpeedActual, this->mCurrentRace->mVCraft->IncrementLimit.SpeedActual, this->mCurrentRace->mVCraft->Stats.Velocity);*/

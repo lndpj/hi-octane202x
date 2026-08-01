@@ -47,6 +47,7 @@
 #include "../utils/boundingbox/collision.h"
 #include "../models/collectable.h"
 #include "../audio/sound.h"
+#include "../models/collectablespawner.h"
 #include "spritething.h"
 #include "../resources/texture.h"
 #include "../models/levelterrain.h"
@@ -66,9 +67,13 @@ void VVehicle::processWeaponBooster() {
     {
         if ((Booster.TriggerTime > 0) && (!FlightModel.Flag.Airbourn)) {
             if (!Booster.TriggerRestrictionCount) {
-                //sample_stop(v4,10)
-                //sample_play(v4, 24);
+                if (TurboSound != nullptr) {
+                    TurboSound->stop();
+                    TurboSound = nullptr;
+                }
+
                 //we can activate the booster
+                mRace->mSoundEngine->PlaySound(SRES_GAME_BOOSTER);
                 ThingData.AffectStatus |= 0x40u;
             }
 
@@ -94,7 +99,72 @@ void VVehicle::processWeaponBooster() {
         Booster.TriggerTime += (2 + Booster.Upgrade);
         //sample_play(v4, 10);
         //sample_set_pitch(v4, 10, 2 * Booster.TriggerTime + 100);
+
+        if (TurboSound == nullptr) {
+            switch (Booster.Upgrade) {
+                case 0: {
+                    TurboSound = mRace->mSoundEngine->PlaySound(SRES_GAME_TURBO, 0.5714f, false);
+                    break;
+                }
+                case 1: {
+                    TurboSound = mRace->mSoundEngine->PlaySound(SRES_GAME_TURBO, 0.8955f, false);
+                    break;
+                }
+                case 2: {
+                    TurboSound = mRace->mSoundEngine->PlaySound(SRES_GAME_TURBO, 1.25f, false);
+                    break;
+                }
+                case 3: {
+                    TurboSound = mRace->mSoundEngine->PlaySound(SRES_GAME_TURBO, 1.6666f, false);
+                    break;
+                }
+                default: {
+                    TurboSound = mRace->mSoundEngine->PlaySound(SRES_GAME_TURBO, 1.0f, false);
+                    break;
+                }
+            }
+        } else {
+            irr::f32 pitch;
+            switch (Booster.Upgrade) {
+                case 0: {
+                   pitch = (irr::f32)((2.0f * (irr::f32)(Booster.TriggerTime) + 200.0f) / 350.0f);
+                   break;
+                }
+                case 1: {
+                   pitch = (irr::f32)((2.25f * (irr::f32)(Booster.TriggerTime) + 300.0f) / 335.0f);
+                   break;
+                }
+                case 2: {
+                   pitch = (irr::f32)((2.35f * (irr::f32)(Booster.TriggerTime) + 400.0f) / 320.0f);
+                   break;
+                }
+                case 3: {
+                   pitch = (irr::f32)((2.5f * (irr::f32)(Booster.TriggerTime) + 500.0f) / 300.0f);
+                   break;
+                }
+                default: {
+                   pitch = 1.0f;
+                   break;
+                }
+            }
+
+            TurboSound->setPitch(pitch);
+
+            if (TurboSound->getStatus() == sf::SoundSource::Status::Stopped) {
+                TurboSound = nullptr;
+            }
+        }
+
         Booster.Trigger = 0;
+    }
+
+    //we need to stop Turbo sound in case the booster
+    //key is released somewhere mid way
+    if (!KeyPressedBooster) {
+        if (TurboSound != nullptr) {
+            TurboSound->stop();
+            TurboSound = nullptr;
+        }
     }
 }
 
@@ -137,7 +207,10 @@ void VVehicle::UpdateEngineSound() {
 
     //highest possible value for pitch seems to be
     //1.90909090909090909091f
-    pitch = (300.0f * vel) / (110.0f);
+    //add a very small number to pitch, so that
+    //pitch does not get 0, because it seems SFML ignores
+    //a pitch parameter exactly with zero value
+    pitch = ((300.0f * vel) / (110.0f)) + 0.01f;
 
     //if this players camera is currently selected to be followed
     //set engine sound to be non spatial, otherwise we get a weird directional
@@ -154,6 +227,12 @@ void VVehicle::UpdateEngineSound() {
 
         this->mRace->mSoundEngine->UpdateVehicleState(this, pitch, irrPos);
     }
+}
+
+bool VVehicle::AllowedToCollectPowerUp() {
+    //Player is only allowed to collect powerUps if
+    //Action == 1 is set (means normal racing mode)
+    return (ThingData.Action == 0x1);
 }
 
 //Is called initially once after race start to further initialize the
@@ -225,7 +304,7 @@ vehicle_execute_action0_initialize_LABEL_23:
         }
     } else {
 vehicle_execute_action0_initialize_LABEL_107:
-        ThingData.Action = 1;
+        ThingData.Action = 0x1;
     }
 }
 
@@ -249,7 +328,7 @@ void VVehicle::vehicle_execute_action0x1_defaultracing() {
         } else if (ThingData.Count == 1) {
             //Set flag that we are out of Fuel
             FlightModel.Flag.FuelDeath = true;
-            ThingData.Action = 20;
+            ThingData.Action = 0x14;
             ThingData.Count = 0;
         }
     }
@@ -269,7 +348,7 @@ void VVehicle::vehicle_execute_action0x1_defaultracing() {
             //   v26->Colide.Group = 0;
             // }
 
-            ThingData.Action = 9;
+            ThingData.Action = 0x9;
             vehicle_setup_tumble();
             FlightModel.Flag.HealthDeath = true;
         } else {
@@ -300,7 +379,7 @@ void VVehicle::vehicle_execute_action0x9_beforeexploding() {
 
     //done with the BarrelRoll?
     if (!FlightModel.Flag.BarrelRoll) {
-        ThingData.Action = 17;
+        ThingData.Action = 0x11;
     }
 
     vehicle_set_camera();
@@ -324,18 +403,21 @@ void VVehicle::vehicle_execute_action0x11_spawnpowerups() {
     //"thing_check_for_human_in_sight" for vehicles
     //if (ThingData.Status & 0x400) != 0) {
 
+    std::vector<Entity::EntityType> powerUpList;
+    powerUpList.clear();
+
     do {
-        //Spawn Extra Shield
+        powerUpList.push_back(Entity::ExtraShield);
         v31 -= 1000;
     } while (v31 >= 1001);
 
     do {
-        //Spawn Extra Fuel
+        powerUpList.push_back(Entity::ExtraFuel);
         v32 -= 1000;
     } while (v32 >= 1001);
 
     do {
-        //Spawn Extra Ammo
+        powerUpList.push_back(Entity::ExtraAmmo);
         v37 -= 1000;
     } while (v37 >= 1001);
 
@@ -350,13 +432,176 @@ void VVehicle::vehicle_execute_action0x11_spawnpowerups() {
     //}
 
     if (Booster.Upgrade) {
-        //Spawn Booster Upgrade
+        powerUpList.push_back(Entity::BoosterUpgrade);
     }
+
+    mRace->SpawnCollectiblesForPlayer(this, powerUpList);
 
     //}
 
-    ThingData.Action = 19;
+    ThingData.Action = 0x13;
     ThingData.Count = 5;
+}
+
+void VVehicle::vehicle_execute_action0x13_exploding() {
+    int16_t v47;
+
+    //TODO: add effects here
+
+    vehicle_get_checkpoint();
+    v47 = ThingData.Count - 1;
+    ThingData.Count = v47;
+    if (v47 < 0) {
+        ThingData.Action = 0x14;
+        ThingData.Count = 0;
+    }
+}
+
+//action0x14 is the vehicle action that calls for
+//a recovery vehicle for help. This state can only be exit when a
+//recovery vehicle is there to help, and advances the action of this
+//vehicle forward to action 0x16
+void VVehicle::vehicle_execute_action0x14_callAndWaitForRecoveryVehicle() {
+    irr::core::vector3df position;
+    uint8_t timeslice;
+
+    ThingData.Movement.AngleXZ *= 0.9765625f;
+    ThingData.Movement.AngleZY *= 0.9765625f;
+    Momentum.DeltaX *= 0.9375f;
+    Momentum.DeltaY *= 0.9375f;
+    MovementInput.AngleXY = 0.0f;
+    MovementInput.SpeedActual = 0.0f;
+
+    if (!FlightModel.Flag.HealthDeath) {
+        vehicle_get_checkpoint();
+        return;
+    }
+
+    //HealthDeath Flag is set, which means we had no health
+    //anymore and therefore this vehicle is now stuck
+    MovementInput.AngleXY = 0.0f;
+    MovementInput.AngleXZ = 0.0f;
+    MovementInput.AngleZY = 0.0f;
+    MovementInput.SpeedActual = 0.0f;
+
+    position.X = ThingData.Position.X;
+    position.Y = ThingData.Position.Y;
+    position.Z = ThingData.Position.Z;
+    timeslice = ThingData.mTimeSlice;
+
+    if ((timeslice & 3) == 0) {
+        //Emit more smoke
+    }
+
+    position.X += 0.078125f;
+
+    if ((ThingData.mTimeSlice & 7) == 0) {
+        //Emit more smoke
+    }
+
+    vehicle_get_checkpoint();
+    return;
+}
+
+//Recovery vehicle advances this vehicles action
+//forward to 0x16 when it starts to help
+void VVehicle::vehicle_execute_action0x16() {
+    irr::core::vector3df position;
+    uint8_t timeslice;
+
+    Increment.AngleXZ = 0.0f;
+    MovementInput.AngleXY = 0.0f;
+    MovementInput.AngleZY = 0.0f;
+    MovementInput.SpeedActual = 0.0f;
+
+    Momentum.DeltaX *= 0.8984375f;
+    Momentum.DeltaY *= 0.8984375f;
+
+    position.X = ThingData.Position.X;
+    position.Y = ThingData.Position.Y;
+    position.Z = ThingData.Position.Z;
+
+    if (!FlightModel.Flag.HealthDeath) {
+        vehicle_get_checkpoint();
+        return;
+    }
+
+    timeslice = ThingData.mTimeSlice;
+
+    if ((timeslice & 3) == 0) {
+        //Emit more smoke
+    }
+
+    position.X += 0.078125f;
+
+    if ((ThingData.mTimeSlice & 7) == 0) {
+        //Emit more smoke
+    }
+
+    vehicle_get_checkpoint();
+}
+
+void VVehicle::vehicle_execute_action0x17_rescue() {
+    ThingData.Movement.AngleZY *= 0.9765625f;
+    ThingData.Movement.AngleZY *= 0.984375f;
+
+    if (FlightModel.Flag.HealthDeath) {
+        //we want to reposition the craft
+        //with the repair vehicle
+        FlightModel.Flag.Reposition = true;
+
+        ThingData.Movement.SpeedActual = 0.0f;
+        Increment.SpeedActual = 0.0f;
+        Stats.Velocity = 0.0f;
+
+        FlightModel.Flag.AutoRearm = false;
+        FlightModel.Flag.AutoRepair = false;
+        FlightModel.Flag.AutoRefuel = false;
+
+        if (Stats.Health < 10000) {
+            Stats.Health += 1000;
+            FlightModel.Flag.AutoRepair = true;
+            //sample_play(v66, 11);
+
+            vehicle_get_checkpoint();
+            return;
+        }
+
+        if (Stats.Fuel < 10000) {
+            Stats.Fuel += 1000;
+            FlightModel.Flag.AutoRefuel = true;
+            //sample_play(v66, 11);
+
+            vehicle_get_checkpoint();
+            return;
+        }
+
+        if (Stats.Weapons < 10000) {
+            Stats.Weapons += 1000;
+            FlightModel.Flag.AutoRearm = true;
+            //sample_play(v66, 11);
+
+            vehicle_get_checkpoint();
+            return;
+        }
+
+        //sample_stop(thing, 11);
+    } else {
+        Stats.Fuel += 2000;
+    }
+
+    ThingData.Action = 0x18;
+    vehicle_get_checkpoint();
+}
+
+void VVehicle::vehicle_execute_action0x18() {
+    if (FlightModel.Flag.HealthDeath) {
+        Damage.BulletCount = 0;
+        Damage.BulletHoles = 0;
+        Damage.MissileCount = 0;
+    }
+
+    vehicle_get_checkpoint();
 }
 
 //Seems to be a reset function of the vehicle in case we get
@@ -406,11 +651,10 @@ void VVehicle::vehicle_execute_action0x19_reset() {
     ThingData.Count = 0;
     Stats.Weight = 0;
 
-    ThingData.Action = 1;
+    ThingData.Action = 0x1;
 }
 
 void VVehicle::vehicle_do_action() {
-
     switch (ThingData.Action) {
         case 0: {
             vehicle_execute_action0x0_initialize();
@@ -432,6 +676,31 @@ void VVehicle::vehicle_do_action() {
             return;
         }
 
+        case 0x13: {
+            vehicle_execute_action0x13_exploding();
+            return;
+        }
+
+        case 0x14: {
+            vehicle_execute_action0x14_callAndWaitForRecoveryVehicle();
+            return;
+        }
+
+        case 0x16: {
+            vehicle_execute_action0x16();
+            return;
+        }
+
+        case 0x17: {
+            vehicle_execute_action0x17_rescue();
+            return;
+        }
+
+        case 0x18: {
+            vehicle_execute_action0x18();
+            return;
+        }
+
         case 0x19: {
             vehicle_execute_action0x19_reset();
             return;
@@ -441,7 +710,6 @@ void VVehicle::vehicle_do_action() {
             return;
         }
     }
-
 }
 
 void VVehicle::Update(irr::f32 frameDeltaTime) {
@@ -462,9 +730,19 @@ void VVehicle::Update(irr::f32 frameDeltaTime) {
         //here
         processWeaponBooster();
 
+        //do not update engine sound for the first ~300ms
+        //of the race to prevent hearing the first height drop
+        if (!mUpdateEngineSound) {
+            if (ThingData.mTimeSlice >= 4) {
+                mUpdateEngineSound = true;
+            }
+        }
+
         //This function should be called every
         //50ms
-        UpdateEngineSound();
+        if (mUpdateEngineSound) {
+            UpdateEngineSound();
+        }
 
         //add later, seems to be needed
         //ClosestMissile = 0;
@@ -700,8 +978,8 @@ VVehicle::VVehicle(Race* mParentRace, std::string model, irr::core::vector3d<irr
    //TODO 17.06.2026: Take care about nrLaps
    mRace = mParentRace;
 
-   //not sure if this +1 is ok?
-   //I mean compared with the original game
+   //nrLaps + 1 is correct, I saw this
+   //also in the original game
    RaceLaps = nrLaps + 1;
 
    if (humanPlayer) {
@@ -1965,7 +2243,7 @@ uint8_t VVehicle::vehicle_process_checkpoint(size_t cp_colide) {
     return v4;
 }
 
-size_t VVehicle::vehicle_checkpoint_find_next(size_t forWayPointIdx) {
+size_t VVehicle::vehicle_checkpoint_find_next(size_t forCheckPointIdx) {
     size_t index = 0;
     int16_t count;
     int16_t v8;
@@ -1977,10 +2255,10 @@ size_t VVehicle::vehicle_checkpoint_find_next(size_t forWayPointIdx) {
     ThingDataStruct* pntr = nullptr;
     ThingDataStruct* pntr2 = nullptr;
 
-    //for which waypoint do we search the next one?
+    //for which checkpoint do we search the next one?
     for (it = mRace->mVanillaCheckpointVec.begin() + 1;
          it != mRace->mVanillaCheckpointVec.end(); ++it) {
-           if ((*it)->Index == forWayPointIdx) {
+           if ((*it)->Index == forCheckPointIdx) {
                pntr = (*it);
                break;
            }
@@ -2491,6 +2769,22 @@ void VVehicle::vehicle_post_process() {
      * Are we dealt any damage?     *
      ********************************/
 
+    if (CollisionSound != nullptr) {
+        if (CollisionSound->getStatus() == sf::SoundSource::Status::Stopped) {
+            CollisionSound = nullptr;
+        }
+    }
+
+    //If we collide this 0x200 flag is set
+    if ((ThingData.AffectStatus & 0x200) != 0) {
+        //if Human player play collision sound
+        if (ControlOrigin == 1) {
+               if (CollisionSound == nullptr) {
+                  CollisionSound = mRace->mSoundEngine->PlaySound(SRES_GAME_COLLISION, false);
+               }
+        }
+    }
+
     if (((ThingData.AffectStatus & 0x607u) != 0) && (Stats.Invincable <= 0)) {
         number = ThingData.AffectNumber;  //contains the value of damage dealt by a certain event
         v12 = -10000;
@@ -2532,6 +2826,13 @@ void VVehicle::vehicle_post_process() {
 
         if ((ThingData.AffectStatus & 0x200) != 0) {
             ++Conditions.BumpAmount;
+
+            //if Human player play collision sound
+            if (ControlOrigin == 1) {
+                   if (CollisionSound == nullptr) {
+                      CollisionSound = mRace->mSoundEngine->PlaySound(SRES_GAME_COLLISION, false);
+                   }
+            }
         }
 
         ThingData.AffectNumber = 0;
@@ -2601,7 +2902,7 @@ void VVehicle::vehicle_post_process() {
 
     //only allow charging
     //if vehicle action is currently 1
-    if (ThingData.Action == 1) {
+    if (ThingData.Action == 0x1) {
         //Are we currently in an rearming station?
         if ((ThingData.AffectStatus & 0x8) != 0) {
             if (Stats.Weapons < 10000) {
@@ -2693,7 +2994,7 @@ void VVehicle::vehicle_post_process() {
 
     } //End of If vehicle Action == 1
 
-    if (ThingData.Action == 23) {
+    if (ThingData.Action == 0x17) {
         if ((ThingData.AffectStatus & 8) != 0) {
             if (Stats.Weapons < 10000) {
                 mCurrChargingAmmo = true;
@@ -2821,6 +3122,9 @@ void VVehicle::vehicle_post_process() {
             }
 
             //Player picks up Invincable powerup?
+            //This AffectStatus 0x80 flag seems to be also
+            //set before the first player passes the final race
+            //check point the first time.
             if ((ThingData.AffectStatus & 0x80) != 0) {
                 Stats.Invincable = 100;
             }
@@ -3234,22 +3538,7 @@ void VVehicle::UpdateSceneNode() {
         return;
     }
 
-    irr::core::matrix4 n;
-    n.setRotationDegrees(irr::core::vector3df(0.0f, 0.0f, 0.0f));
-    mCraftNode->setRotation(n.getRotationDegrees());
-
-    //take care about the model 3D orientation
-    ModelYaw(mCraftNode, View.AngleXY);
-    ModelPitch(mCraftNode, -View.AngleZY);
-    ModelRoll(mCraftNode, View.AngleXZ);
-
-    //finally move model to new 3D Position
-    irr::core::vector3df newPos = mRace->mVCalc->VanillaToIrrlichtCoord(View.Position);
-    mCraftNode->setPosition(newPos);
-    //mCraftNode->setVisible(false);
-
-    //Update the Irrlicht bounding box
-    mCraftNode->updateAbsolutePosition();
+    mRace->UpdateSceneNodeModel(mCraftNode, &View);
     mBoundingBox = mCraftNode->getTransformedBoundingBox();
 }
 
@@ -3284,36 +3573,6 @@ void VVehicle::DrawDebug() {
 
     mRace->mGame->mDrawDebug->Draw3DLine(*mRace->mGame->mDrawDebug->origin,
                                          irrSensRearRight, mRace->mGame->mDrawDebug->brown);
-}
-
-//--- rotate node relative to its current rotation -used in turn,pitch,roll ---
-void VVehicle::ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot)
-{
-    irr::core::matrix4 m;
-    m.setRotationDegrees(node->getRotation());
-    irr::core::matrix4 n;
-    n.setRotationDegrees(rot);
-    m *= n;
-    node->setRotation(m.getRotationDegrees());
-    node->updateAbsolutePosition();
-}
-
-//--- turn ship left or right ---
-void VVehicle::ModelYaw(irr::scene::ISceneNode *node, irr::f32 rot)
-{
-    ModelRotate(node, irr::core::vector3df(0.0f, rot, 0.0f) );
-}
-
-//--- pitch ship up or down ---
-void VVehicle::ModelPitch(irr::scene::ISceneNode *node, irr::f32 rot)
-{
-    ModelRotate(node, irr::core::vector3df(rot, 0.0f, 0.0f) );
-}
-
-//--- roll ship left or right ---
-void VVehicle::ModelRoll(irr::scene::ISceneNode *node, irr::f32 rot)
-{
-    ModelRotate(node, irr::core::vector3df(0.0f, 0.0f, rot) );
 }
 
 //NewPosition = New position of player craft center of gravity (world coordinates)

@@ -488,6 +488,14 @@ uint16_t VTrack::track_vector_collide(irr::core::vector3df position1, irr::core:
     return v9;
 }
 
+void VTrack::UpdateWaypointHeightInformation() {
+    size_t idx;
+
+    for (idx = 1; idx < NextWaypoint; idx++) {
+        TrackWaypointList[idx].Position.Z = mParentRace->mVCalc->map_floor(TrackWaypointList[idx].Position);
+    }
+}
+
 int8_t VTrack::track_initialise_waypoint(uint16_t wp_type, irr::core::vector3df pos1,
                                          irr::core::vector3df pos2) {
     size_t v5;

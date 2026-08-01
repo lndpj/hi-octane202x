@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2024-2025 Wolf Alexander
+ Copyright (C) 2024-2026 Wolf Alexander
 
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
 
@@ -110,7 +110,7 @@ void Collectable::UpdatePosition(irr::core::vector3df newPosition) {
     //Position is the center of the BillboardSceneNode
     //Position in the level file could be the bottom location at the surface
     //therefore we need to add the height of the billboard to the Y coordinate
-    newPosition.Y += GetCollectableCenterHeight();
+    newPosition.Y += 0.2f;
 
     this->Position = newPosition;
 
@@ -145,29 +145,6 @@ Entity::EntityType Collectable::GetCollectableType() {
     return mEntityType;
 }
 
-void Collectable::UpdateType2Collectable(irr::f32 deltaTime) {
-    //if this is a type 1 collectable, and this function was
-    //accidently called, just exit
-    if (this->mEntityItem != nullptr)
-        return;
-
-    //reduce remaining lifetime with deltaTime
-    this->remainingLifeTime -= deltaTime;
-
-    //time for item to disappear?
-    if (this->remainingLifeTime < 0.0f) {
-        SetVisible(false);
-    }
-}
-
-bool Collectable::GetType2CollectableCleanUpNecessary() {
-    if (this->remainingLifeTime < 0.0f) {
-        return true;
-    }
-
-    return false;
-}
-
 Collectable::~Collectable() {
     //cleanup collectable stuff
 
@@ -184,11 +161,6 @@ void Collectable::PickedUp() {
 
     //I am not active (visible) anymore, hide my sceneNode
     this->billSceneNode->setVisible(false);
-
-   //if type 2 collectible, delete this collectible
-   if (this->mEntityItem == nullptr) {
-        this->remainingLifeTime = -1.0f;
-   }
 }
 
 //when a collectable is triggered it

@@ -7,7 +7,7 @@
  https://irrlicht.sourceforge.io/forum/viewtopic.php?t=43565
  https://irrlicht.sourceforge.io/forum//viewtopic.php?p=246138#246138
 
- Copyright (C) 2024-2025 Wolf Alexander
+ Copyright (C) 2024-2026 Wolf Alexander
  Copyright (C) 2016 movAX13h and srtuss  (authors of original source code of function createEntity, later modified by me)
  
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
@@ -67,6 +67,7 @@
 #include "resources/mapentry.h"
 
 #include "vanilla/debug/dbginterface.h"
+#include "vanilla/vrepair.h"
 
 #include "game.h"
 #include "race.h"
@@ -226,6 +227,16 @@ public:
     }
 };
 
+//needed for a workaround in original game
+bool Race::IsOriginalLevel5Loaded() {
+    if ((mLevelRootPath == "extract/level0-5/") &&
+        (mLevelName == "level0-5")) {
+        return true;
+    }
+
+    return false;
+}
+
 Race::Race(Game* parentGame, MyMusicStream* gameMusicPlayerParam,
            SoundEngine* soundEngine, std::string levelRootPath, std::string levelName, irr::u8 nrLaps, bool demoMode,
            bool attributionActive, bool skipStart) {
@@ -248,6 +259,8 @@ Race::Race(Game* parentGame, MyMusicStream* gameMusicPlayerParam,
 
     mLevelRootPath = levelRootPath;
     mLevelName = levelName;
+
+    IsOriginalLevel5Loaded();
 
     ready = false;
     mGame = parentGame;
@@ -300,13 +313,13 @@ Race::Race(Game* parentGame, MyMusicStream* gameMusicPlayerParam,
 
     mPlayerVec.clear();
     mVanillaCraftVec.clear();
+    mVanillaRepairVehicleVec.clear();
     mPlayerPhysicObjVec.clear();
     playerRaceFinishedVec.clear();
     mTriggerRegionVec.clear();
     mPendingTriggerTargetGroups.clear();
     mTimerVec.clear();
     mExplosionEntityVec.clear();
-    mType2CollectableForCleanupLater.clear();
 
     mSpriteThingList.clear();
 
@@ -728,6 +741,18 @@ Race::~Race() {
         delete playerPntr;
     }
 
+    //free all recovery vehicles
+    VRepair* recoveryVehiclePntr;
+    std::vector<VRepair*>::iterator it2;
+
+    for (it2 = this->mVanillaRepairVehicleVec.begin(); it2 != this->mVanillaRepairVehicleVec.end();) {
+        recoveryVehiclePntr = (*it2);
+
+        it2 = mVanillaRepairVehicleVec.erase(it2);
+
+        delete recoveryVehiclePntr;
+    }
+
     //remove camera SceneNode
     mCamera->remove();
 
@@ -912,31 +937,20 @@ void Race::CleanUpEntities() {
            pntr = (Collectable*)(*it);
            it = ENTCollectablesVec->erase(it);
 
-           //delete Collectable itself
-           //this frees SceneNode and texture inside
-           //collectable implementation
-           delete pntr;
+           //26.07.2026: Do not delete Collectable items
+           //type 2; This objects are taken care of by the
+           //Collectablespawners itself!
+           if (pntr->mEntityItem != nullptr) {
+               //delete Collectable itself
+               //this frees SceneNode and texture inside
+               //collectable implementation
+               delete pntr;
+           }
        }
    }
 
    delete ENTCollectablesVec;
    ENTCollectablesVec = nullptr;
-
-   //delete remaining type2 collectable items
-   //which were dynamically spawned before
-   if (mType2CollectableForCleanupLater.size() > 0) {
-       std::vector<Collectable*>::iterator it;
-       Collectable* pntr;
-       for (it = mType2CollectableForCleanupLater.begin(); it != mType2CollectableForCleanupLater.end(); ) {
-           pntr = (Collectable*)(*it);
-           it = mType2CollectableForCleanupLater.erase(it);
-
-           //delete Collectable itself
-           //this frees SceneNode and texture inside
-           //collectable implementation
-           delete pntr;
-       }
-   }
 }
 
 void Race::CleanUpSteamFountains() {
@@ -1042,62 +1056,69 @@ void Race::CallRecoveryVehicleForHelp(Player *whichPlayer) {
 //}
 
 void Race::UpdateRecoveryVehicles(irr::f32 deltaTime) {
-    //does at least one player need help?
-    if (mPlayerWaitForRecoveryVec->size() > 0) {
-        vector< pair <irr::f32, Recovery*> > vecAvailRecoveryVehicles;
+   //  //does at least one player need help?
+   //  if (mPlayerWaitForRecoveryVec->size() > 0) {
+   //      vector< pair <irr::f32, Recovery*> > vecAvailRecoveryVehicles;
 
-        std::vector<Player*>::iterator itPlayer;
-        //go through all players that are currently waiting for help
-        for (itPlayer = mPlayerWaitForRecoveryVec->begin(); itPlayer != mPlayerWaitForRecoveryVec->end(); ) {
-            //yes, search the nearest recovery vehicle that is available
-            //right now
+   //      std::vector<Player*>::iterator itPlayer;
+   //      //go through all players that are currently waiting for help
+   //      for (itPlayer = mPlayerWaitForRecoveryVec->begin(); itPlayer != mPlayerWaitForRecoveryVec->end(); ) {
+   //          //yes, search the nearest recovery vehicle that is available
+   //          //right now
 
-            std::vector<Recovery*>::iterator it;
-            irr::f32 distance;
+   //          std::vector<Recovery*>::iterator it;
+   //          irr::f32 distance;
 
-            vecAvailRecoveryVehicles.clear();
+   //          vecAvailRecoveryVehicles.clear();
 
-            for (it = this->recoveryVec->begin(); it != this->recoveryVec->end(); ++it) {
-                //currently available?
-                if ((*it)->CurrentlyReadyforMission()) {
-                    //yes it is, calculate distance between player and recovery vehicle
-                    //we want to call the closest one
-                    distance = ((*itPlayer)->phobj->physicState.position - (*it)->GetCurrentPosition()).getLength();
+   //          for (it = this->recoveryVec->begin(); it != this->recoveryVec->end(); ++it) {
+   //              //currently available?
+   //              if ((*it)->CurrentlyReadyforMission()) {
+   //                  //yes it is, calculate distance between player and recovery vehicle
+   //                  //we want to call the closest one
+   //                  distance = ((*itPlayer)->phobj->physicState.position - (*it)->GetCurrentPosition()).getLength();
 
-                    vecAvailRecoveryVehicles.push_back( make_pair(distance, (*it)));
-                }
-            }
+   //                  vecAvailRecoveryVehicles.push_back( make_pair(distance, (*it)));
+   //              }
+   //          }
 
-            //if there is at least one recovery vehicle available sort them by descending distance,
-            //and select one for this player, otherwise do nothing
-            if (vecAvailRecoveryVehicles.size() > 0) {
-                //sort vector pairs in descending value of distance
-               std::sort(vecAvailRecoveryVehicles.rbegin(), vecAvailRecoveryVehicles.rend());
+   //          //if there is at least one recovery vehicle available sort them by descending distance,
+   //          //and select one for this player, otherwise do nothing
+   //          if (vecAvailRecoveryVehicles.size() > 0) {
+   //              //sort vector pairs in descending value of distance
+   //             std::sort(vecAvailRecoveryVehicles.rbegin(), vecAvailRecoveryVehicles.rend());
 
-               //start with the last element in sorted vector (which is the closest recovery vehicle
-               //to this player)
-               auto it4 = vecAvailRecoveryVehicles.rbegin();
+   //             //start with the last element in sorted vector (which is the closest recovery vehicle
+   //             //to this player)
+   //             auto it4 = vecAvailRecoveryVehicles.rbegin();
 
-               //now command the selected recovery vehicle to help this player
-               (*it4).second->SentToRepairMission(*itPlayer);
+   //             //now command the selected recovery vehicle to help this player
+   //             (*it4).second->SentToRepairMission(*itPlayer);
 
-               //delete this player from the waiting list
-               itPlayer = this->mPlayerWaitForRecoveryVec->erase(itPlayer);
-            } else {
-                //no more recovery vehicles available
-                //we can stop to look
-                break;
-            }
+   //             //delete this player from the waiting list
+   //             itPlayer = this->mPlayerWaitForRecoveryVec->erase(itPlayer);
+   //          } else {
+   //              //no more recovery vehicles available
+   //              //we can stop to look
+   //              break;
+   //          }
 
-            //more recovery vehicles available
-            //search one for the next player in need
-     }
-   }
+   //          //more recovery vehicles available
+   //          //search one for the next player in need
+   //   }
+   // }
+
+   // //update all available recovery vehicles
+   // std::vector<Recovery*>::iterator it;
+
+   // for (it = this->recoveryVec->begin(); it != this->recoveryVec->end(); ++it) {
+   //     (*it)->Update(deltaTime);
+   // }
 
    //update all available recovery vehicles
-   std::vector<Recovery*>::iterator it;
+   std::vector<VRepair*>::iterator it;
 
-   for (it = this->recoveryVec->begin(); it != this->recoveryVec->end(); ++it) {
+   for (it = this->mVanillaRepairVehicleVec.begin(); it != this->mVanillaRepairVehicleVec.end(); ++it) {
        (*it)->Update(deltaTime);
    }
 }
@@ -1306,7 +1327,7 @@ void Race::DamagePlayer(Player* targetToHit, irr::f32 damageVal, irr::u8 damageT
             this->mExplosionLauncher->Trigger(targetToHit->phobj->physicState.position);
 
             //spawn collectibles at location of killed player
-            SpawnCollectiblesForPlayer(targetToHit);
+            //SpawnCollectiblesForPlayer(targetToHit);
         }
     }
 }
@@ -1564,6 +1585,7 @@ std::vector<RaceStatsEntryStruct*>* Race::RetrieveFinalRaceStatistics() {
     // }
 
     // return (result);
+    return NULL;
 }
 
 void Race::Init() {
@@ -1931,6 +1953,9 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     if (mVanillaGameLoopTimer >= 0.065f) {
         mVanillaGameLoopTimer = 0.0f;
         vehicle_race_positions();
+
+        //update all collectable spawners
+        UpdateCollectableSpawners(0.065f);
     }
 
     //are we in Race start phase, if so also call
@@ -2014,6 +2039,8 @@ void Race::AdvanceTime(irr::f32 frameDeltaTime) {
     for (itPlayer = mVanillaCraftVec.begin(); itPlayer != mVanillaCraftVec.end(); ++itPlayer) {
         (*itPlayer)->Update(frameDeltaTime);
     }
+
+    UpdateRecoveryVehicles(frameDeltaTime);
 
     UpdateSpriteThings(frameDeltaTime);
 
@@ -2407,7 +2434,7 @@ void Race::HandleDebugInput() {
    if(mGame->mEventReceiver->IsKeyDownSingleEvent(irr::KEY_KEY_C)) {
        //toggle collision resolution active state
        //mPhysics->collisionResolutionActive = !mPhysics->collisionResolutionActive;
-      // mVanillaCraftVec.at(0)->Stats.Health = 0;
+       mVanillaCraftVec.at(0)->Stats.Health = 0;
    }
 
    if ((mCloneRecording != nullptr) && DebugShowCloneRecording) {
@@ -2594,7 +2621,11 @@ void Race::draw2DImage(irr::video::IVideoDriver *driver, irr::video::ITexture* t
     }
 
     material.Lighting = false;
+#if IRRLICHT_VERSION_MAJOR >= 1 && IRRLICHT_VERSION_MINOR >= 9
+    material.ZWriteEnable = video::EZW_OFF;
+#else
     material.ZWriteEnable = false;
+#endif
     material.ZBuffer = false;
     material.TextureLayer[0].Texture = texture;
     //the following line did not work, therefore I commented it out
@@ -2839,6 +2870,8 @@ void Race::DebugDrawCloneShip(CloneRecording* recording, size_t atIndex, irr::sc
     moveWhichNode->setPosition(newPos);
 }
 
+//SceneNode update
+
 //--- rotate node relative to its current rotation -used in turn,pitch,roll ---
 void Race::ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot)
 {
@@ -2851,22 +2884,58 @@ void Race::ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot)
     node->updateAbsolutePosition();
 }
 
-//--- turn ship left or right ---
+//--- turn sceneNode left or right ---
 void Race::ModelYaw(irr::scene::ISceneNode *node, irr::f32 rot)
 {
     ModelRotate(node, irr::core::vector3df(0.0f, rot, 0.0f) );
 }
 
-//--- pitch ship up or down ---
+//--- pitch sceneNode up or down ---
 void Race::ModelPitch(irr::scene::ISceneNode *node, irr::f32 rot)
 {
     ModelRotate(node, irr::core::vector3df(rot, 0.0f, 0.0f) );
 }
 
-//--- roll ship left or right ---
+//--- roll sceneNode left or right ---
 void Race::ModelRoll(irr::scene::ISceneNode *node, irr::f32 rot)
 {
     ModelRotate(node, irr::core::vector3df(0.0f, 0.0f, rot) );
+}
+
+void Race::UpdateSceneNodeModel(irr::scene::ISceneNode *node,
+                                              VehicleViewStruct* view) {
+
+    if ((node == nullptr) || (view == nullptr)) {
+        return;
+    }
+
+    irr::core::matrix4 n;
+    n.setRotationDegrees(irr::core::vector3df(0.0f, 0.0f, 0.0f));
+    node->setRotation(n.getRotationDegrees());
+
+    //take care about the model 3D orientation
+    ModelYaw(node, view->AngleXY);
+    ModelPitch(node, -view->AngleZY);
+    ModelRoll(node, view->AngleXZ);
+
+    //finally move model to new 3D Position
+    irr::core::vector3df newPos = mVCalc->VanillaToIrrlichtCoord(view->Position);
+    node->setPosition(newPos);
+
+    //Update the Irrlicht bounding box
+    node->updateAbsolutePosition();
+}
+
+//--- rotate node relative to its current rotation -used in turn,pitch,roll ---
+void InfrastructureBase::ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot)
+{
+    irr::core::matrix4 m;
+    m.setRotationDegrees(node->getRotation());
+    irr::core::matrix4 n;
+    n.setRotationDegrees(rot);
+    m *= n;
+    node->setRotation(m.getRotationDegrees());
+    node->updateAbsolutePosition();
 }
 
 void Race::Render() {
@@ -3359,6 +3428,8 @@ void Race::InitialUpdateEntityPositions() {
     irr::core::vector3df irrCoord;
     irr::core::vector3df vanCoord;
 
+    mVTrack->UpdateWaypointHeightInformation();
+
     for (it = ENTCollectablesVec->begin(); it != ENTCollectablesVec->end(); ++it) {
         //only apply for type 1 collectables (the ones which are contained in the level file initially!)
         if ((*it)->mEntityItem != nullptr) {
@@ -3379,6 +3450,14 @@ void Race::InitialUpdateEntityPositions() {
             vanCoord = (*it2)->Position;
             vanCoord.Z = mVCalc->map_altitude_lowest(vanCoord);
             (*it2)->Position = vanCoord;
+    }
+
+    //finish initialization of the recovery
+    //vehicles
+    std::vector<VRepair*>::iterator it3;
+
+    for (it3 = mVanillaRepairVehicleVec.begin(); it3 != mVanillaRepairVehicleVec.end(); ++it3) {
+           (*it3)->Initialize();
     }
 }
 
@@ -3490,7 +3569,7 @@ bool Race::LoadLevel() {
    //this are not only items to pickup by the player
    //but also waypoints, collision information, checkpoints
    //level morph information and so on...
-   createLevelEntities();
+   CreateLevelEntities();
 
    //The second part of the terrain initialization can only be done
    //after the map entities are loaded in another part of the code
@@ -4117,6 +4196,31 @@ void Race::CheckPointPostProcessing() {
     }
 }
 
+void Race::RegisterTemporaryCollectible(Collectable* collectibleToAdd) {
+    //Register a temporary (spawned type 2 collectible) in Race, so that
+    //it can be collected by players
+    ENTCollectablesVec->push_back(collectibleToAdd);
+
+    //recalculate boundingBox
+    collectibleToAdd->billSceneNode->updateAbsolutePosition();
+    collectibleToAdd->boundingBox = collectibleToAdd->billSceneNode->getTransformedBoundingBox();
+}
+
+void Race::UnregisterTemporaryCollectible(Collectable* collectibleToRemove) {
+    if (collectibleToRemove == nullptr)
+        return;
+
+    std::vector<Collectable*>::iterator it;
+
+    for (it = ENTCollectablesVec->begin(); it != ENTCollectablesVec->end(); ) {
+       if ((*it) == collectibleToRemove) {
+            it = ENTCollectablesVec->erase(it);
+        } else {
+                ++it;
+            }
+    }
+}
+
 //creates all data that is needed for level wall collision detection
 //based on collision info contained within the level file entities
 void Race::createWallCollisionData() {
@@ -4251,10 +4355,9 @@ void Race::CheckPlayerCollidedCollectible(VVehicle* player) {
     if (player == nullptr)
         return;
 
-    //ony allow player which is not currently broken down to collect
-    //collectables
-    /*if (player->mPlayerStats->mPlayerCurrentState == STATE_PLAYER_BROKEN)
-        return;*/
+    //is player allowed to pickup a powerUp right now?
+    if (!player->AllowedToCollectPowerUp())
+        return;
 
     std::vector<Collectable*>::iterator it;
 
@@ -4279,7 +4382,7 @@ void Race::CheckPlayerCollidedCollectible(VVehicle* player) {
     }
 }
 
-void Race::createLevelEntities() {
+void Race::CreateLevelEntities() {
 
     ENTWaypoints_List = new std::vector<EntityItem*>;
     ENTWaypoints_List->clear();
@@ -4298,7 +4401,7 @@ void Race::createLevelEntities() {
 
     //create all level entities
     for(std::vector<EntityItem*>::iterator loopi = this->mLevelRes->Entities.begin(); loopi != this->mLevelRes->Entities.end(); ++loopi) {
-        createEntity(*loopi, this->mLevelRes, this->mLevelTerrain, this->mLevelBlocks, mGame->mDriver);
+        CreateEntity(*loopi, this->mLevelRes, this->mLevelTerrain, this->mLevelBlocks, mGame->mDriver);
     }
 }
 
@@ -4764,7 +4867,7 @@ void Race::AddTrigger(EntityItem *entity) {
     this->mTriggerRegionVec.push_back(newTriggerRegion);
 }
 
-void Race::createEntity(EntityItem *p_entity,
+void Race::CreateEntity(EntityItem *p_entity,
                         LevelFile *levelRes, LevelTerrain *levelTerrain, LevelBlocks* levelBlocks, irr::video::IVideoDriver *driver) {
     //Line line;
     irr::f32 w, h;
@@ -5028,18 +5131,21 @@ void Race::createEntity(EntityItem *p_entity,
          }
 
         case Entity::EntityType::RecoveryTruck: {
-            Recovery *recov1 =
-                    new Recovery(this, entity.getCenter().X, entity.getCenter().Y + 6.0f, entity.getCenter().Z, mGame->mSmgr);
+           /* Recovery *recov1 =
+                    new Recovery(this, entity.getCenter().X, entity.getCenter().Y + 6.0f, entity.getCenter().Z, mGame->mSmgr);*/
+
+            VRepair* newRepairVehicle = new VRepair(this, entity.getCenter(), mGame->mSmgr);
 
             if (mGame->mUseXEffects) {
                 // Add this SceneNode to the shadow node list, using the chosen filtertype.
                 // It will use the default shadow mode, ESM_BOTH, which allows it to
                 // both cast and receive shadows.
-                mGame->mEffect->addShadowToNode(recov1->Recovery_node, mShadowMapFilterType);
+                mGame->mEffect->addShadowToNode(newRepairVehicle->RecoveryNode, mShadowMapFilterType);
             }
 
             //remember all recovery vehicles in a vector for later use
-            this->recoveryVec->push_back(recov1);
+            //this->recoveryVec->push_back(recov1);
+            this->mVanillaRepairVehicleVec.push_back(newRepairVehicle);
 
             break;
         }
@@ -5248,26 +5354,21 @@ irr::u16 Race::GetCollectableSpriteNumber(Entity::EntityType mEntityType) {
   return nrSprite;
 }
 
-void Race::SpawnCollectiblesForPlayer(Player* player) {
+void Race::SpawnCollectiblesForPlayer(VVehicle* player, std::vector<Entity::EntityType>& powerUpList) {
    if (player == nullptr)
        return;
 
-   //spawn collectibles at the current player location
-   irr::core::vector3df location = player->phobj->physicState.position;
-
+   //create a new CollectableSpawner
    CollectableSpawner* newSpawner = new CollectableSpawner(
-               this, location, mGame->mSmgr, mGame->mDriver);
+               this, player->ThingData.Position, mGame->mSmgr, mGame->mDriver);
 
-   newSpawner->AddCollectableToSpawn(Entity::EntityType::ExtraFuel);
-   newSpawner->AddCollectableToSpawn(Entity::EntityType::ExtraShield);
-   newSpawner->AddCollectableToSpawn(Entity::EntityType::ExtraAmmo);
-   newSpawner->AddCollectableToSpawn(Entity::EntityType::ExtraFuel);
-   newSpawner->AddCollectableToSpawn(Entity::EntityType::ExtraShield);
-   newSpawner->AddCollectableToSpawn(Entity::EntityType::ExtraAmmo);
-
-   newSpawner->Trigger();
+   std::vector<Entity::EntityType>::iterator it;
+   for (it = powerUpList.begin(); it != powerUpList.end(); ++it) {
+        newSpawner->AddCollectableToSpawn((*it));
+   }
 
    mCollectableSpawnerVec.push_back(newSpawner);
+   newSpawner->Trigger();
 }
 
 void Race::UpdateCollectableSpawners(irr::f32 frameDeltaTime) {
@@ -5298,33 +5399,6 @@ void Race::UpdateCollectableSpawners(irr::f32 frameDeltaTime) {
         //update all remaining active collectible spawners
         for (it = mCollectableSpawnerVec.begin(); it != mCollectableSpawnerVec.end(); ++it) {
             ((*it)->Update(frameDeltaTime));
-        }
-    }
-}
-
-void Race::UpdateType2Collectables(irr::f32 frameDeltaTime) {
-    std::vector<Collectable*>::iterator it;
-
-    for (it = ENTCollectablesVec->begin(); it != ENTCollectablesVec->end(); ) {
-        //is this a type2 collectable
-        if ((*it)->mEntityItem == nullptr) {
-            //yes, it is, update it
-            //this make sure that their lifetime is reduces, and after
-            //their lifetime is over, the disappear and are deleted
-            (*it)->UpdateType2Collectable(frameDeltaTime);
-
-            //is the lifetime of the item over?
-            if ((*it)->GetType2CollectableCleanUpNecessary()) {
-                //add item to cleanup list for later
-                mType2CollectableForCleanupLater.push_back(*it);
-
-                //erase collectable from update list
-                it = ENTCollectablesVec->erase(it);
-            } else {
-                it++;
-            }
-        } else {
-            it++;
         }
     }
 }

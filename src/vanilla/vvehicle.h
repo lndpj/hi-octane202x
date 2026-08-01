@@ -146,13 +146,6 @@ struct VehicleStatsStruct {
     char name[10];
 };
 
-struct VehicleViewStruct {
-    irr::core::vector3df Position;
-    irr::f32 AngleXY;
-    irr::f32 AngleZY;
-    irr::f32 AngleXZ;
-};
-
 struct VehicleSpecialMovesStruct {
     irr::f32 AngleXY;
     irr::f32 AngleZY;
@@ -322,6 +315,8 @@ public:
     bool ShouldFuelBarBlink();
     bool ShouldShieldBarBlink();
 
+    bool AllowedToCollectPowerUp();
+
     void SetName(char* playerName);
 
     //is called when the player collected a collectable item of the
@@ -398,20 +393,21 @@ public:
     int32_t LapTicks = 0;
     int32_t LastLapTicks = 0;
 
-private:
-    uint32_t ControlOrigin = 1; //activates the human player
-    uint16_t LastWayPoint = 0;
-
     //This variables seems to have something to do with
     //checkpoint handling
     size_t Counter[8];
+
+    void vehicle_set_camera();
+
+private:
+    uint32_t ControlOrigin = 1; //activates the human player
+    uint16_t LastWayPoint = 0;
 
     int32_t TotalRaceTicks = 0;
     int32_t TotalRaceTicksFinished = 0;
 
     irr::u8 mPlayerCurrentState;
 
-    //variables which only I use in my project
     irr::f32 mAbsTimeIntegrator = 0.0f;
 
     irr::f32 mUpdateVehicleTimeIntegrator = 0.0f;
@@ -419,12 +415,19 @@ private:
     //the mesh for the Irrlicht SceneNode model
     irr::scene::IAnimatedMesh* mCraftMesh = nullptr;
 
+    bool mUpdateEngineSound = false;
+
     void SetupFlightModelConstants();
 
     void vehicle_execute_action0x0_initialize();
     void vehicle_execute_action0x1_defaultracing();
     void vehicle_execute_action0x9_beforeexploding();
     void vehicle_execute_action0x11_spawnpowerups();
+    void vehicle_execute_action0x13_exploding();
+    void vehicle_execute_action0x14_callAndWaitForRecoveryVehicle();
+    void vehicle_execute_action0x16();
+    void vehicle_execute_action0x17_rescue();
+    void vehicle_execute_action0x18();
     void vehicle_execute_action0x19_reset();
 
     void vehicle_do_action();
@@ -458,12 +461,11 @@ private:
     uint8_t vehicle_colide(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta);
     uint8_t vehicle_colide_final_check_sean(std::vector<VVehicle*> &vehicleVec, irr::core::vector3df& delta);
     void vehicle_move_mapwho(irr::core::vector3df& delta);
-    void vehicle_set_camera();
     void vehicle_post_process();
 
     int32_t vehicle_get_checkpoint();
     uint8_t vehicle_process_checkpoint(size_t cp_colide);
-    size_t vehicle_checkpoint_find_next(size_t forWayPointIdx);
+    size_t vehicle_checkpoint_find_next(size_t forCheckPointIdx);
     void vehicle_checkpoint_next_lap();
 
     void UpdateEngineSound();
@@ -559,6 +561,9 @@ private:
     //Is the original game does
     DustBelowCraft* mDustBelowCraft = nullptr;
 
+    sf::Sound* TurboSound = nullptr;
+    sf::Sound* CollisionSound = nullptr;
+
     void CheckDustCloudEmitter();
 
     //definition of dirt texture elements vector
@@ -575,11 +580,6 @@ private:
     void UpdateSceneNode();
 
     void processWeaponBooster();
-
-    void ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot);
-    void ModelYaw(irr::scene::ISceneNode *node, irr::f32 rot);
-    void ModelPitch(irr::scene::ISceneNode *node, irr::f32 rot);
-    void ModelRoll(irr::scene::ISceneNode *node, irr::f32 rot);
 };
 
 #endif // VVEHICLE_H

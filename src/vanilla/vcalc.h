@@ -74,8 +74,6 @@ public:
 
     irr::core::vector3df VectorProjection(const irr::core::vector3df& a, const irr::core::vector3df& b);
 
-    void Update();
-
     //Convert a float into a fixed point number (8.8 format)
     int16_t FloatToFixedPoint8D8(irr::f32 floatVal);
     //Convert a float into a fixed point number (16.16 format)
