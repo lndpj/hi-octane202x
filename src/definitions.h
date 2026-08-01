@@ -18,8 +18,6 @@
 
 //User setup start
 
-#define DEF_PLAYERCANGOBACKWARDS false
-
 //Audio settings
 #define AUDIO_SAMPLERATE 44100
 

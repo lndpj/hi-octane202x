@@ -31,58 +31,97 @@
 //I really want to thank aybe for giving me the opportunity to look much deeper into the original game inner workings as I was ever able before.
 //Without this support I would not have been able to hopefully advance the current project more true to the original.
 
-#ifndef VBASE_H
-#define VBASE_H
+#ifndef VREPAIR_H
+#define VREPAIR_H
 
 #include "irrlicht.h"
-#include <cstdint>
+#include "vbase.h"
+#include "vvehicle.h"
 
 /************************
  * Forward declarations *
  ************************/
 
-struct MovementStruct {
-    irr::f32 AngleXY = 0.0f;
-    irr::f32 AngleZY = 0.0f;
-    irr::f32 AngleXZ = 0.0f;
-    irr::f32 SpeedActual = 0.0f;
+class Race;
+
+class VRepair {
+public:
+    VRepair(Race* mParentRace, irr::core::vector3d<irr::f32> NewPosition,
+             irr::scene::ISceneManager* smgr);
+    ~VRepair();
+
+    void Initialize();
+    void Update(irr::f32 frameDeltaTime);
+
+    //Thing data
+    ThingDataStruct ThingData;
+
+    Race* mRace = nullptr;
+
+
+    //flight model constants
+    MovementStruct IncrementAdd;
+
+    VehicleViewStruct View;
+
+    //Needs to be public to be able to add it to
+    //X-Effects filter, TODO: change later
+    irr::scene::IMeshSceneNode* RecoveryNode = nullptr;
+
+private:
+    irr::f32 mAbsTimeIntegrator = 0.0f;
+
+    //In the original game the repair vehicle also reuses
+    //the default race vehicle struct (with a lot of variables not used
+    //at the end). I wanted to give it its own struct; It seems the original
+    //game reuses BumpDamage of the default car to store an additional waypoint
+    //information;
+    uint16_t BumpDamage;
+
+    //This variables seems to have something to do with
+    //checkpoint handling
+    size_t Counter[8];
+
+    //In my implementation TargetVehicle replaces the role
+    //of CurrentWaypoint in the original game for the recovery
+    //vehicle
+    VVehicle* TargetVehicle = nullptr;
+
+    void repair_vehicle_move_toward(irr::core::vector3df t_position,
+                                    irr::core::vector3df& delta, irr::f32 speed, irr::f32 dist);
+
+    void repair_vehicle_rotate_car(VVehicle* targetVehicle);
+    uint16_t repair_vehicle_find_drop_waypoint(VVehicle* targetVehicle);
+
+    void repair_vehicle_execute_action0x1A(irr::core::vector3df pos1,
+                                                    irr::core::vector3df pos2, irr::core::vector3df& delta);
+
+    void repair_vehicle_execute_action0x1B(irr::core::vector3df pos1,
+                                                    irr::core::vector3df pos2, irr::core::vector3df& delta);
+
+    void repair_vehicle_execute_action0x1C(irr::core::vector3df pos1,
+                                                    irr::core::vector3df pos2, irr::core::vector3df& delta);
+
+    void repair_vehicle_execute_action0x1D(irr::core::vector3df pos1,
+                                                    irr::core::vector3df pos2, irr::core::vector3df& delta);
+
+    void repair_vehicle_execute_action0x1E(irr::core::vector3df pos1,
+                                                    irr::core::vector3df pos2, irr::core::vector3df& delta);
+
+    void repair_vehicle_execute_action0x1F();
+
+    uint8_t repair_vehicle_drop_point_ok(uint16_t waypoint);
+
+    void initialiseVEHICLE_POLICE_HELICOPTER();
+
+    void repair_vehicle_set_camera();
+
+    //Things needed for Irrlicht
+    irr::scene::ISceneManager* mSmgr = nullptr;
+
+    irr::scene::IAnimatedMesh*  RecoveryMesh = nullptr;
+
+    void UpdateSceneNode();
 };
 
-struct MomentumStruct {
-    irr::f32 DeltaX = 0.0f;
-    irr::f32 DeltaY = 0.0f;
-    irr::f32 AngleXY = 0.0f;
-};
-
-struct VehicleViewStruct {
-    irr::core::vector3df Position;
-    irr::f32 AngleXY;
-    irr::f32 AngleZY;
-    irr::f32 AngleXZ;
-};
-
-struct ThingDataStruct {
-    irr::core::vector3df Position;
-    MovementStruct Movement;
-    irr::core::vector3df Displacement;
-
-    uint32_t AffectStatus = 0;
-    int16_t AffectNumber = 0; //allows to specify the amount of damage dealt with an action
-    uint16_t AffectWho = 0;   //allows to specify who does something
-
-    bool Stationary = false;
-    int16_t Life = 1000;
-    uint8_t mTimeSlice = 0;
-
-    int16_t Count = 0;
-    irr::core::vector3df CollideSize;
-
-    //May be used for thing identification
-    //But I use it different then the original game
-    size_t Index = 0;
-
-    uint32_t Status = 0;
-    int8_t Action = 0;
-};
-
-#endif // VBASE_H
+#endif // VREPAIR_H

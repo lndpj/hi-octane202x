@@ -112,6 +112,8 @@ public:
     VanillaWaypointStruct TrackWaypointList[200];
     uint16_t NextWaypoint = 1;
 
+    void UpdateWaypointHeightInformation();
+
     int8_t track_initialise_waypoint(uint16_t wp_type, irr::core::vector3df pos1,
                                      irr::core::vector3df pos2);
 

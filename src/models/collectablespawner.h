@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2025 Wolf Alexander
+ Copyright (C) 2025-2026 Wolf Alexander
 
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
 
@@ -13,6 +13,7 @@
 #include <irrlicht.h>
 #include <vector>
 #include "../resources/entityitem.h"
+#include "../vanilla/vbase.h"
 
 #define DEF_COLLECTABLE_SPAWNER_STATE_INITIAL 0
 #define DEF_COLLECTABLE_SPAWNER_STATE_SPAWNING 1
@@ -31,20 +32,21 @@ struct SpawnedCollectableInfoStruct {
     //pointer to the spawned new collectable object
     Collectable* pntrCollectable = nullptr;
 
-    irr::core::vector3df currVelocity;
-    irr::core::vector3df spawnPoint;
+    //Important: state contains the coordinates in vanilla
+    //(original game) coordinate system
+    ThingDataStruct state;
 
-    irr::core::vector3df mVelocity;
+    irr::f32 deltaTimeAcc;
 
-    bool mHitTerrain = false;
-
-    bool collectableReachedFinalLocation = false;
+    bool endOfLifeReached;
+    bool spawned;
 };
 
 class CollectableSpawner {
 public:
-    CollectableSpawner(Race* race, irr::core::vector3df spawnLocation, irr::scene::ISceneManager* smgr,
-                       irr::video::IVideoDriver *driver);
+    //Important: input parameters use the vanilla (original games) coordinate system!
+    CollectableSpawner(Race* race, irr::core::vector3df vanillaSpawnLocation,
+                       irr::scene::ISceneManager* smgr, irr::video::IVideoDriver *driver);
     ~CollectableSpawner();
 
     void Update(irr::f32 deltaTime);
@@ -55,7 +57,8 @@ public:
     void Trigger();
 
 private:
-    irr::core::vector3df mPosition;
+    irr::core::vector3df mVanillaSpawnLocation;
+
     irr::scene::ISceneManager* mSmgr = nullptr;
     irr::video::IVideoDriver* mDriver = nullptr;
 
@@ -64,7 +67,9 @@ private:
     Race *mRace = nullptr;
     irr::u8 mState = DEF_COLLECTABLE_SPAWNER_STATE_INITIAL;
 
-    void AddCollectibleToRaceVector(Collectable* collectibleToAdd);
+    void RegisterTemporaryCollectible(Collectable* collectibleToAdd);
+
+    int8_t UpdatePosition(irr::f32 deltaTime, ThingDataStruct& whichThing);
 };
 
 #endif // COLLECTABLESPAWNER_H

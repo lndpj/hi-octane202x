@@ -214,14 +214,6 @@ public:
     //False is for computer player
     bool mHumanPlayer;
 
-    //the following control functions are only
-    //valid to be used with a human player!
-    void Forward(irr::f32 deltaTime);
-    void Backward(irr::f32 deltaTime);
-    void Left();
-    void Right();
-    void NoTurningKeyPressed();
-
     void ChangeViewMode();
 
     int mCurrPosCellX;
@@ -454,10 +446,6 @@ public:
     bool mBoosterActive = false;
     bool mBoosterRechargeCurrentlyLocked = false;
     bool mLastBoosterActive = false;
-    sf::Sound* TurboSound = nullptr;
-
-    void IsSpaceDown(bool down, irr::f32 deltaTime);
-    void MaxTurboReached();
 
     bool mMaxTurboActive = false;
     bool mLastMaxTurboActive = false;
