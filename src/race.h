@@ -7,7 +7,7 @@
  https://irrlicht.sourceforge.io/forum/viewtopic.php?t=43565
  https://irrlicht.sourceforge.io/forum//viewtopic.php?p=246138#246138
 
- Copyright (C) 2024-2025 Wolf Alexander
+ Copyright (C) 2024-2026 Wolf Alexander
  Copyright (C) 2016 movAX13h and srtuss  (authors of original source code of function createEntity, later modified by me)
  
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
@@ -143,7 +143,9 @@ class VTrack;
 class VCamera;
 class DbgInterface;
 class SpriteThing;
+class VRepair;
 struct ThingDataStruct;
+struct VehicleViewStruct;
 
 class Race {
 public:
@@ -154,6 +156,11 @@ public:
     ~Race();
 
     std::vector<VVehicle*> mVanillaCraftVec;
+    std::vector<VRepair*> mVanillaRepairVehicleVec;
+
+    void RegisterTemporaryCollectible(Collectable* collectibleToAdd);
+    void UnregisterTemporaryCollectible(Collectable* collectibleToRemove);
+    void SpawnCollectiblesForPlayer(VVehicle* player, std::vector<Entity::EntityType>& powerUpList);
 
     VTrack* mVTrack = nullptr;
     VCamera* mVCamera = nullptr;
@@ -347,6 +354,13 @@ public:
     //coordinate system
     std::vector<ThingDataStruct*> mVanillaCheckpointVec;
 
+    //needed for a workaround in original game
+    //in vrepair.cpp
+    bool IsOriginalLevel5Loaded();
+
+    void UpdateSceneNodeModel(irr::scene::ISceneNode *node,
+                                                  VehicleViewStruct* view);
+
 private:
     std::string mLevelRootPath;
     std::string mLevelName;
@@ -434,10 +448,10 @@ private:
     bool DebugShowChargingStationInfo = false;
     bool DebugShowCloneRecording = false;
 
-    void createEntity(EntityItem *p_entity, LevelFile *levelRes, LevelTerrain *levelTerrain, LevelBlocks* levelBlocks, irr::video::IVideoDriver *driver);
+    void CreateEntity(EntityItem *p_entity, LevelFile *levelRes, LevelTerrain *levelTerrain, LevelBlocks* levelBlocks, irr::video::IVideoDriver *driver);
     bool LoadSkyImage(irr::video::IVideoDriver* driver, irr::core::dimension2d<irr::u32> screenResolution);
     bool LoadLevel();
-    void createLevelEntities();
+    void CreateLevelEntities();
 
     void DrawSky();
     void DrawTestShape();
@@ -575,13 +589,12 @@ private:
     void ControlStartPhase(irr::f32 frameDeltaTime);
     irr::f32 mStartPhaseTimeCounter = 0.0f;
 
+public:
     std::vector<CollectableSpawner*> mCollectableSpawnerVec;
+
+private:
     void UpdateCollectableSpawners(irr::f32 frameDeltaTime);
-    void SpawnCollectiblesForPlayer(Player* player);
 
-    void UpdateType2Collectables(irr::f32 frameDeltaTime);
-
-    std::vector<Collectable*> mType2CollectableForCleanupLater;
 
     void CreateChargingStations();
 

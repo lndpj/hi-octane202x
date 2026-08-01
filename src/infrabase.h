@@ -289,6 +289,8 @@ public:
   void RenderProgressBar(irr::core::recti position, irr::video::SColor colorRect, irr::video::SColor lineColor,
                              irr::u8 nrBlocks, irr::s8 nrBlocksFilled);
 
+
+
 private:
   //Irrlicht stuff
   bool mFullscreen;
@@ -313,7 +315,11 @@ private:
   bool ParseOriginalGameCreditsWorkaround(std::vector<uint8_t> mGameCreditsInformation, size_t startIdx);
 
   bool ReadGameConfigXmlFile(IrrlichtDevice *device);
-};
 
+  void ModelRotate(irr::scene::ISceneNode *node, irr::core::vector3df rot);
+  void ModelYaw(irr::scene::ISceneNode *node, irr::f32 rot);
+  void ModelPitch(irr::scene::ISceneNode *node, irr::f32 rot);
+  void ModelRoll(irr::scene::ISceneNode *node, irr::f32 rot);
+};
 
 #endif // INFRABASE_H

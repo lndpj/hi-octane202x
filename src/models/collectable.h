@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2024-2025 Wolf Alexander
+ Copyright (C) 2024-2026 Wolf Alexander
 
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
 
@@ -17,10 +17,6 @@
 //HiOctaneTools
 const irr::f32 CollectableSize_w = 0.45f;
 const irr::f32 CollectableSize_h = 0.45f;
-
-//time in seconds after which a dynamically spawned entity/collectable
-//disappears again, if it was not collected by any player until then
-const irr::f32 DEF_TYPE2_COLLECTABLE_LIFETIME = 30.0f;
 
 /************************
  * Forward declarations *
@@ -86,26 +82,12 @@ public:
 
     void SetVisible(bool visible);
 
-    //this function takes care that the dynamically spawned items
-    //are removed again after a certain lifetime (if the were not yet picked
-    //up by any player)
-    void UpdateType2Collectable(irr::f32 deltaTime);
-
-    //only used for type 2 collectable, if this function returns true
-    //this item needs to be cleaned up now
-    bool GetType2CollectableCleanUpNecessary();
-
 private:
     InfrastructureBase* mInfra = nullptr;
 
     bool mEnableLightning;
 
     void SetupSceneNode(Entity::EntityType type, irr::core::vector3df pos);
-
-    //for type2 collectable (dynamically spawned) there seems to be
-    //a lifetime in game after which the item disappears again, if it was
-    //not yet collected; not used for type 1 collectable (contained in level file itself)
-    irr::f32 remainingLifeTime = DEF_TYPE2_COLLECTABLE_LIFETIME;
 
 protected:
     //default is non visible after

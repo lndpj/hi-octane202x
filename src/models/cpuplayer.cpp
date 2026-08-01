@@ -1116,56 +1116,9 @@ void CpuPlayer::CPForceController(irr::f32 deltaTime) {
 }
 
 void CpuPlayer::CPForward(irr::f32 deltaTime) {
-    //if player can not move right now simply
-    //exit
-    if (!mParentPlayer->mPlayerStats->mPlayerCanMove)
-        return;
-
-    //29.04.2025: for throttleVal calculation we need to take into accont
-    //the current frame rate! otherwise the throttle change speed
-    //depends heavily on the frame rate of the computer!
-    irr::f32 speedFactor = (deltaTime / (irr::f32)(1.0f / 60.0f));
-
-        //to accelerate player add force in craft forward direction
-        mParentPlayer->phobj->AddLocalCoordForce(mParentPlayer->LocalCraftOrigin, irr::core::vector3df(0.0f, 0.0f, -50.0f), PHYSIC_APPLYFORCE_REAL,
-                                    PHYSIC_DBG_FORCETYPE_ACCELBRAKE);
-
-        if (mParentPlayer->mPlayerStats->throttleVal < mParentPlayer->mPlayerStats->throttleMax) {
-            //+1.0f is for constant 60FPS
-            mParentPlayer->mPlayerStats->throttleVal += 1.0f * speedFactor;
-        }
 }
 
 void CpuPlayer::CPBackward(irr::f32 deltaTime) {
-    //29.04.2025: for throttleVal calculation we need to take into accont
-    //the current frame rate! otherwise the throttle change speed
-    //depends heavily on the frame rate of the computer!
-    irr::f32 speedFactor = (deltaTime / (irr::f32)(1.0f / 60.0f));
-
-    if (!DEF_PLAYERCANGOBACKWARDS) {
-        //we can not go backwards in Hioctane
-        //we can only add friction to brake
-        mParentPlayer->phobj->AddFriction(1000.0f);
-
-        if (mParentPlayer->mPlayerStats->throttleVal > 0) {
-            //-1.0f is for constant 60FPS
-            mParentPlayer->mPlayerStats->throttleVal -= 1.0f * speedFactor;
-        }
-    } else {
-        //if player can not move right now simply
-        //exit
-        if (!mParentPlayer->mPlayerStats->mPlayerCanMove)
-            return;
-
-            //go solution during debugging, for example testing collisions, it helps to be able to accelerate backwards
-            mParentPlayer->phobj->AddLocalCoordForce(mParentPlayer->LocalCraftOrigin, irr::core::vector3df(0.0f, 0.0f, 50.0f), PHYSIC_APPLYFORCE_REAL,
-                                    PHYSIC_DBG_FORCETYPE_ACCELBRAKE);
-
-            if (mParentPlayer->mPlayerStats->throttleVal > 0) {
-                //-1.0f is for constant 60FPS
-                mParentPlayer->mPlayerStats->throttleVal -= 1.0f * speedFactor;
-            }
-    }
 }
 
 void CpuPlayer::CPTrackMovement() {

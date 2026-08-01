@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2025 Wolf Alexander
+ Copyright (C) 2025-2026 Wolf Alexander
 
  This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3.
 
@@ -8,126 +8,218 @@
  You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.                                          */
 
 #include "collectablespawner.h"
-#include "../utils/physics.h"
+#include "../vanilla/vcalc.h"
 #include "../race.h"
 #include "../models/collectable.h"
-#include "../models/levelterrain.h"
-#include "../resources/mapentry.h"
 #include "../game.h"
 #include "../resources/texture.h"
 
-CollectableSpawner::CollectableSpawner(Race* race, irr::core::vector3df spawnLocation, irr::scene::ISceneManager* smgr,
-                                       irr::video::IVideoDriver *driver) {
+//Important: input parameters use the vanilla (original games) coordinate system!
+CollectableSpawner::CollectableSpawner(Race* race, irr::core::vector3df vanillaSpawnLocation,
+                                       irr::scene::ISceneManager* smgr, irr::video::IVideoDriver *driver) {
     mSmgr = smgr;
     mRace = race;
     mDriver = driver;
 
-    mPosition = spawnLocation;
+    mVanillaSpawnLocation = vanillaSpawnLocation;
     mSpawnedCollectablesVec.clear();
 }
 
-void CollectableSpawner::AddCollectibleToRaceVector(Collectable* collectibleToAdd) {
-    //still add it to race vector of collectibles, so that it is properly
-    //cleaned up from memory afterwards
-    mRace->ENTCollectablesVec->push_back(collectibleToAdd);
+//Contains the implementation from powerup_move function
+//from original game
+//Important note: Works with vanilla coordinate system
+//of original game!
+int8_t CollectableSpawner::UpdatePosition(irr::f32 deltaTime, ThingDataStruct& whichThing) {
+   irr::core::vector3df intPosition;
+   irr::core::vector3df intDisplacement;
+   irr::f32 XPos;
+   irr::f32 YPos;
+   irr::f32 ZPos;
 
-    //recalculate boundingBox
-    collectibleToAdd->billSceneNode->updateAbsolutePosition();
-    collectibleToAdd->boundingBox = collectibleToAdd->billSceneNode->getTransformedBoundingBox();
+   bool isNoCollision;
+   bool Flag1Set;
+   bool Flag2Set;
+   bool Flag4Set;
+
+   if (!whichThing.Stationary) {
+      intPosition.X = whichThing.Position.X;
+      intPosition.Y = whichThing.Position.Y;
+      intPosition.Z = whichThing.Position.Z;
+
+      XPos = whichThing.Displacement.X;
+      irr::f32 v9 = XPos + (float)(7.0f / 256.0f);
+      if (v9 < 0.0f) {
+          v9 += (float)(7.0f / 256.0f);
+      }
+
+      whichThing.Displacement.X -= (v9 / 8.0f);
+
+      YPos = whichThing.Displacement.Y;
+      irr::f32 v11 = YPos + (float)(7.0f / 256.0f);
+      if (v11 < 0.0f) {
+          v11 += (float)(7.0f / 256.0f);
+      }
+
+      whichThing.Displacement.Y -= (v11 / 8.0f);
+
+      ZPos = whichThing.Displacement.Z;
+      ZPos -= (float)(8.0f / 256.0f);
+
+      if (ZPos < (float)(-100.0f / 256.0f)) {
+          ZPos = (float)(-100.0f / 256.0f);
+      }
+
+      whichThing.Displacement.Z = ZPos;
+
+      mRace->mVCalc->move_displacement_xyz(intPosition, whichThing.Displacement, 1);
+
+      int8_t collideResult = mRace->mVCalc->map_colide_direction(whichThing.Position, intPosition);
+
+      isNoCollision = (collideResult == 0);
+      Flag1Set = ((collideResult & 1) != 0);
+
+      if (!isNoCollision) {
+          //there is a collision
+          isNoCollision = !Flag1Set;
+          Flag2Set = ((collideResult & 2) != 0);
+
+          if (!isNoCollision) {
+              irr::f32 v18 = 0.0f;
+              if (whichThing.Displacement.X > 0.0f) {
+                  v18 = (float)(1.0f / 256.0f);
+              }
+
+              v18 -= whichThing.Displacement.X;
+              v18 = v18 * 0.5f;
+
+              whichThing.Displacement.X = v18;
+              intPosition.X = whichThing.Position.X + v18;
+          }
+
+           isNoCollision = !Flag2Set;
+           Flag4Set = ((collideResult & 4) != 0);
+
+           if (!isNoCollision) {
+               irr::f32 v21 = 0.0f;
+               if (whichThing.Displacement.Y > 0.0f) {
+                   v21 = (float)(1.0f / 256.0f);
+               }
+
+               v21 -= whichThing.Displacement.Y;
+               v21 = v21 * 0.5f;
+
+               whichThing.Displacement.Y = v21;
+               intPosition.Y = whichThing.Position.Y + v21;
+           }
+
+           if (Flag4Set) {
+               irr::f32 v23 = (float)((-120.0f / 256.0f)) * whichThing.Displacement.Z;
+               whichThing.Displacement.Z = v23;
+
+               if (v23 < (float)(10.0f / 256.0f)) {
+                   whichThing.Displacement.Z = 0.0f;
+               }
+
+              intPosition.Z = whichThing.Displacement.Z + mRace->mVCalc->map_floor(intPosition);
+              mRace->mVCalc->move_displacement_slope(whichThing.Position, intDisplacement);
+
+              irr::f32 v24 = -1.0f;
+              if ((intDisplacement.X < -1.0f) ||
+                      (v24 = 1.0f, intDisplacement.X >= (float)(257.0f / 256.0f))) {
+                  intDisplacement.X = v24;
+              }
+
+              irr::f32 v25 = -1.0f;
+              if ((intDisplacement.Y < -1.0f) ||
+                      (v25 = 1.0f, intDisplacement.Y >= (float)(257.0f / 256.0f))) {
+                  intDisplacement.Y = v25;
+              }
+
+              whichThing.Displacement.X += intDisplacement.X / 16.0f;
+              whichThing.Displacement.Y += intDisplacement.Y / 16.0f;
+           }
+      }
+
+      //TODO: ? mapwho_move(whichThing, position);
+      whichThing.Position = intPosition;
+      return 1;
+   }
+
+   return 0;
 }
 
 void CollectableSpawner::Update(irr::f32 deltaTime) {
+    irr::core::vector3df irrCoordPos;
+
     //was spawning items triggered?
     if (mState == DEF_COLLECTABLE_SPAWNER_STATE_SPAWNING) {
-          irr::f32 terrainHeight;
-          int current_cell_calc_x, current_cell_calc_y;
           std::vector<SpawnedCollectableInfoStruct*>::iterator it;
-          bool allCollectiblesReachedFinalLocation = true;
+          bool allCollectiblesReachedEndOfLife = true;
           SpawnedCollectableInfoStruct* pntrInfoStruct;
-
-          irr::f32 speedFactor = (deltaTime / (irr::f32)(1.0f / 60.0f));
 
           //now update all the elements we spawned
           for (it = this->mSpawnedCollectablesVec.begin(); it != this->mSpawnedCollectablesVec.end(); ++it) {
-              if (!(*it)->collectableReachedFinalLocation) {
-                    allCollectiblesReachedFinalLocation = false;
-                    //item is still moving, calculate next position
-                    (*it)->pntrCollectable->UpdatePosition((*it)->pntrCollectable->Position + (*it)->currVelocity * speedFactor * 0.015f);
-                    (*it)->currVelocity = (*it)->currVelocity + this->mRace->mPhysics->mGravityVec * speedFactor * 0.015f;
-
-                    //check if sprite is currently moving towards ground, and is very close to race track ground (hits the ground)
-                    //in this case stop the movement of the collectable, and fix it in position
-                    //only check more if the sprite is currently falling towards the race track
-                    if ((*it)->currVelocity.Y < 0.0f) {
-                          //yes, sprite is falling down, now we need to calculate high about terrain tile below
-                          //calculate current cell below sprite
-                          current_cell_calc_y = (int)((*it)->pntrCollectable->Position.Z / mRace->mLevelTerrain->segmentSize);
-                          current_cell_calc_x = -(int)((*it)->pntrCollectable->Position.X / mRace->mLevelTerrain->segmentSize);
-
-                          MapEntry* mEntry = mRace->mLevelTerrain->GetMapEntry(current_cell_calc_x, current_cell_calc_y);
-
-                          //is there actually an entry?
-                          if (mEntry != nullptr) {
-                               terrainHeight = mRace->mLevelTerrain->pTerrainTiles[mEntry->get_X()][mEntry->get_Z()].currTileHeight;
-
-                               //collectible too close to terrain, stop the collectible to continue further
-                               if (((*it)->pntrCollectable->Position.Y - terrainHeight) < ((*it)->pntrCollectable->GetCollectableCenterHeight())) {
-                                   //to close to terrain, stop movement
-                                   (*it)->mHitTerrain = true;
-                                   (*it)->collectableReachedFinalLocation = true;
-                               }
-                           } else {
-                              //we did not find a valid entry, let collectible disappear (hide it)
-                              //because we set it to not visible the computer players will not see it
-                              //and we can also not pick it up => no problem
-                              (*it)->collectableReachedFinalLocation = true;
-                              (*it)->pntrCollectable->SetVisible(false);
-                           }
-                      }
-
-                    //reduce liftetime of collectible
-                    //if lifetime over remove this type 2 collectible
-                    (*it)->pntrCollectable->UpdateType2Collectable(deltaTime);
+               //do nothing if end of life already reached
+              if ((*it)->endOfLifeReached) {
+                  continue;
               }
-         }
 
-          SpawnedCollectableInfoStruct* pntrStr;
+              //Update and verify remaining lifetime
+              (*it)->deltaTimeAcc += deltaTime;
 
-        //remove all type 2 collectibles that have no lifetime left
-        for (it = this->mSpawnedCollectablesVec.begin(); it != this->mSpawnedCollectablesVec.end(); ) {
-            if ((*it)->pntrCollectable->GetType2CollectableCleanUpNecessary()) {
-                pntrStr = (*it);
-                it = mSpawnedCollectablesVec.erase(it);
+              //reduce collectable remaining life time count
+              //every 50ms, independent of period time we
+              //run this function otherwise
+              if ((*it)->deltaTimeAcc > 0.05) {
+                 (*it)->deltaTimeAcc = 0.0f;
+                 (*it)->state.Life -= 1;
 
-                //delete the type 2 collectable again
-                delete pntrStr->pntrCollectable;
-            } else {
-                ++it;
+                 if ((*it)->state.Life < 0) {
+                     //hide the type 2 collectable, so that it can
+                     //not be picked up anymore
+                     (*it)->pntrCollectable->SetVisible(false);
+                     (*it)->endOfLifeReached = true;
+                     continue;
+                 }
+
+                 //check if any temporary collectables were picked up, and therefore
+                 //reached end of life
+                 //we know this when the were spawned before, but are not visible
+                 //anymore
+                 if ((*it)->spawned && (!(*it)->pntrCollectable->GetIfVisible())) {
+                     (*it)->endOfLifeReached = true;
+                     continue;
+                 }
+              }
+
+              allCollectiblesReachedEndOfLife = false;
+
+              if (!(*it)->spawned) {
+                  (*it)->pntrCollectable->SetVisible(true);
+                  (*it)->spawned = true;
+
+                  //add it to race vector of collectibles, so that it can be picked up by a player
+                  mRace->RegisterTemporaryCollectible((*it)->pntrCollectable);
+              }
+
+              //item is still existing, calculate next position
+              UpdatePosition(deltaTime, (*it)->state);
+
+              //convert from vanilla to my Irrlicht coordinate system
+              irrCoordPos = mRace->mVCalc->VanillaToIrrlichtCoord((*it)->state.Position);
+
+              //updates position of SceneNode, Boundingsbox etc...
+              (*it)->pntrCollectable->UpdatePosition(irrCoordPos);
+          }
+
+          //all collectibles have reached end-of-life?
+          if (allCollectiblesReachedEndOfLife) {
+            //first unregister all temporary Collectibles from Race
+            //so that this objects can not be used anymore
+            for (it = this->mSpawnedCollectablesVec.begin(); it != this->mSpawnedCollectablesVec.end(); ++it) {
+                mRace->UnregisterTemporaryCollectible((*it)->pntrCollectable);
             }
-        }
 
-        //process all items that have reached final position at the race track surface
-        for (it = this->mSpawnedCollectablesVec.begin(); it != this->mSpawnedCollectablesVec.end(); ) {
-           if ((*it)->collectableReachedFinalLocation) {
-               //add it to race vector of collectibles, so that it can be picked up by a player and is properly
-               //cleaned up from memory afterwards
-               AddCollectibleToRaceVector((*it)->pntrCollectable);
-
-               pntrInfoStruct = (*it);
-
-               //remove entry in my vector, not needed anymore
-               it = mSpawnedCollectablesVec.erase(it);
-
-               //also delete the info struct
-               delete pntrInfoStruct;
-            } else {
-               //go to next element
-               it++;
-           }
-        }
-
-        //all collectibles have reached the final location
-        if (allCollectiblesReachedFinalLocation) {
             //mark spawner to be done with spawning
             //so that this spawner object can be deleted by the
             //race object afterwards
@@ -152,43 +244,61 @@ void CollectableSpawner::AddCollectableToSpawn(Entity::EntityType newEntityType)
     //create a new type 2 collectable
     irr::u16 spriteNr = mRace->GetCollectableSpriteNumber(newEntityType);
 
-    Collectable* newCollectable = new Collectable(mRace->mGame, newEntityType, mPosition, mRace->mTexLoader->spriteTex.at(spriteNr), this->mRace->mGame->enableLightning);
+    irr::core::vector3df irrCoordPos;
+
+    //convert from vanilla to my Irrlicht coordinate system
+    irrCoordPos = mRace->mVCalc->VanillaToIrrlichtCoord(this->mVanillaSpawnLocation);
+
+    //This creates the collectable SceneNode in Irrlicht, but also hides it immediately
+    //so that first it is not visible
+    Collectable* newCollectable = new Collectable(mRace->mGame, newEntityType, irrCoordPos,
+                                                  mRace->mTexLoader->spriteTex.at(spriteNr), this->mRace->mGame->enableLightning);
 
     //create a new struct with information how to spawn the collectable
     SpawnedCollectableInfoStruct* newInfoStruct = new SpawnedCollectableInfoStruct();
 
+    //keep a pointer to the sceneNode
     newInfoStruct->pntrCollectable = newCollectable;
-    newInfoStruct->spawnPoint = mPosition;
+
+    //we also need to fill out the ThingData struct
+    newInfoStruct->state.Position = mVanillaSpawnLocation;
+    newInfoStruct->state.CollideSize.set(1.0f, 1.0f, 1.0f);
+    newInfoStruct->state.Position.Z = mRace->mVCalc->map_floor(newInfoStruct->state.Position);
+    newInfoStruct->deltaTimeAcc = 0.0f;
+    newInfoStruct->endOfLifeReached = false;
+    newInfoStruct->spawned = false;
 
     irr::f32 rNumFloat1;
     irr::f32 rNumFloat2;
     irr::f32 rNumFloat3;
     int rNum;
 
-    //derive a random flying velocity direction vector for the collectables
+    //derive a random flying speed, the random number range below taken also from
+    //powerup_init function of original game
     rNum = rand();
-    rNumFloat1 = 0.5f + (float(rNum) / float (RAND_MAX))  * 0.5f;
+    rNumFloat1 = 0.3125f + (float(rNum) / float (RAND_MAX)) * 0.3125f;
 
+    newInfoStruct->state.Life = 200;
+    newInfoStruct->state.Movement.SpeedActual = rNumFloat1;
+
+
+    //create another random number for Movement.Angle.ZY
     rNum = rand();
-    rNumFloat2 = 0.5f + (float(rNum) / float (RAND_MAX))  * 0.5f;
+    rNumFloat2 = 19.9951171875f + (float(rNum) / float (RAND_MAX)) * 69.9993896484375f;
 
+    //create another random number for Movement.Angle.XY
+    //I was not able to find out the original implementation for this random number generation
+    //Therefore I ran multiple iterations in the emulator, and observed the resulting random
+    //numbers; With this information I created this code below
     rNum = rand();
-    if (float(rNum) > (float (RAND_MAX) * 0.5f)) {
-        rNumFloat1 = -rNumFloat1;
-    }
+    rNumFloat3 = -180.0f + (float(rNum) / float (RAND_MAX)) * 360.0f;
 
-    rNum = rand();
-    if (float(rNum) > (float (RAND_MAX) * 0.5f)) {
-        rNumFloat2 = -rNumFloat2;
-    }
+    newInfoStruct->state.Movement.AngleXY = rNumFloat3;
+    newInfoStruct->state.Movement.AngleZY = -rNumFloat2;
 
-    rNum = rand();
-    //velocity for Y axis only upwards, not that the object is shoot into the ground
-    rNumFloat3 = 1.0f + (float(rNum) / float (RAND_MAX))  * 2.0f;
-
-    //set initial velocity
-    newInfoStruct->mVelocity.set(rNumFloat1 * 2.0f, rNumFloat3 * 2.0f, rNumFloat2 * 2.0f);
-    newInfoStruct->currVelocity = newInfoStruct->mVelocity;
+    mRace->mVCalc->move_displacement_set(newInfoStruct->state.Displacement, newInfoStruct->state.Movement.AngleXY,
+                                         newInfoStruct->state.Movement.AngleZY,
+                                         newInfoStruct->state.Movement.SpeedActual);
 
     //add to my vector of items to spawn
     mSpawnedCollectablesVec.push_back(newInfoStruct);
@@ -206,11 +316,16 @@ void CollectableSpawner::Trigger() {
 }
 
 CollectableSpawner::~CollectableSpawner() {
-    //delete the remaining collectibles and collectible
-    //spawning info structs that are not yet finished
-    //otherwise we have a memory leak
+    std::vector<SpawnedCollectableInfoStruct*>::iterator it;
+
+    //delete all temporary created stuff
     if (mSpawnedCollectablesVec.size() > 0) {
-        std::vector<SpawnedCollectableInfoStruct*>::iterator it;
+        //make sure to unregister all temporary Collectibles from Race
+        //so that this objects can not be used anymore
+        for (it = this->mSpawnedCollectablesVec.begin(); it != this->mSpawnedCollectablesVec.end(); ++it) {
+            mRace->UnregisterTemporaryCollectible((*it)->pntrCollectable);
+        }
+
         SpawnedCollectableInfoStruct* pntrInfoStruct;
         Collectable* pntrCollectible;
 
